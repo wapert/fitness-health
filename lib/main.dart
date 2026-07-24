@@ -18,38 +18,20 @@ class FitnessApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        // Waiting for Firebase to return the initial auth state
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return MaterialApp(
-            theme: AppTheme.light,
-            darkTheme: AppTheme.dark,
-            home: const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            ),
-          );
-        }
-
-        final isLoggedIn = snapshot.hasData;
-
-        // Not signed in → show login screen directly
-        if (!isLoggedIn) {
-          return MaterialApp(
-            title: '全方位健身',
-            theme: AppTheme.light,
-            darkTheme: AppTheme.dark,
-            home: const AuthScreen(),
-          );
-        }
-
-        // Signed in → full app with navigation
-        return MaterialApp.router(
-          title: '全方位健身',
-          theme: AppTheme.light,
-          darkTheme: AppTheme.dark,
-          routerConfig: appRouter,
+    return MaterialApp.router(
+      title: '全方位健身',
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      routerConfig: appRouter,
+      // builder wraps every route; swap in AuthScreen when not signed in
+      builder: (context, child) {
+        return StreamBuilder<User?>(
+          stream: FirebaseAuth.instance.authStateChanges(),
+          initialData: FirebaseAuth.instance.currentUser,
+          builder: (context, snapshot) {
+            if (snapshot.data == null) return const AuthScreen();
+            return child ?? const SizedBox.shrink();
+          },
         );
       },
     );
