@@ -68,15 +68,18 @@ class _UserViewState extends State<_UserView> {
   Future<void> _signOut(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      // IMPORTANT: pop with the dialog's own context, not the screen's.
+      // The screen context pops GoRouter's shell navigator (removing the
+      // /profile page itself → blank screen) instead of the dialog.
+      builder: (dialogContext) => AlertDialog(
         title: const Text('登出'),
         content: const Text('確定要登出帳號嗎？'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: () => Navigator.pop(dialogContext, false),
               child: const Text('取消')),
           FilledButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () => Navigator.pop(dialogContext, true),
               child: const Text('登出')),
         ],
       ),

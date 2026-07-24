@@ -18,20 +18,28 @@ class FitnessApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: '全方位健身',
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      routerConfig: appRouter,
-      // builder wraps every route; swap in AuthScreen when not signed in
-      builder: (context, child) {
-        return StreamBuilder<User?>(
-          stream: FirebaseAuth.instance.authStateChanges(),
-          initialData: FirebaseAuth.instance.currentUser,
-          builder: (context, snapshot) {
-            if (snapshot.data == null) return const AuthScreen();
-            return child ?? const SizedBox.shrink();
-          },
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      initialData: FirebaseAuth.instance.currentUser,
+      builder: (context, snapshot) {
+        final isLoggedIn = snapshot.data != null;
+
+        // Not signed in → login screen (own MaterialApp = full Navigator/Overlay)
+        if (!isLoggedIn) {
+          return MaterialApp(
+            title: '全方位健身',
+            theme: AppTheme.light,
+            darkTheme: AppTheme.dark,
+            home: const AuthScreen(),
+          );
+        }
+
+        // Signed in → full app with bottom-nav router
+        return MaterialApp.router(
+          title: '全方位健身',
+          theme: AppTheme.light,
+          darkTheme: AppTheme.dark,
+          routerConfig: appRouter,
         );
       },
     );
