@@ -1,9 +1,4 @@
-import 'dart:async';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-
-import '../../features/auth/screens/auth_screen.dart';
 import '../../features/body_map/screens/body_map_screen.dart';
 import '../../features/fasting/screens/fasting_screen.dart';
 import '../../features/jogging/screens/jogging_home_screen.dart';
@@ -12,23 +7,11 @@ import '../../features/plan/screens/plan_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import '../../features/stretching/screens/stretching_home_screen.dart';
 import '../../features/training/screens/training_home_screen.dart';
-import '../services/auth_service.dart';
 import '../../shared/widgets/main_shell.dart';
-
-final _authNotifier = _AuthChangeNotifier();
 
 final appRouter = GoRouter(
   initialLocation: '/training',
-  refreshListenable: _authNotifier,
-  redirect: (context, state) {
-    final isLoggedIn = AuthService.instance.currentUser != null;
-    final isOnLogin  = state.uri.path == '/login';
-    if (!isLoggedIn && !isOnLogin) return '/login';
-    if (isLoggedIn  && isOnLogin)  return '/training';
-    return null;
-  },
   routes: [
-    GoRoute(path: '/login', builder: (_, __) => const AuthScreen()),
     ShellRoute(
       builder: (context, state, child) => MainShell(child: child),
       routes: [
@@ -44,19 +27,3 @@ final appRouter = GoRouter(
     ),
   ],
 );
-
-// Listens to Firebase auth state changes and notifies GoRouter to re-evaluate
-// its redirect. When kFirebaseConfigured is false this is a no-op.
-class _AuthChangeNotifier extends ChangeNotifier {
-  StreamSubscription<User?>? _sub;
-
-  _AuthChangeNotifier() {
-    _sub = AuthService.instance.authStateChanges.listen((_) => notifyListeners());
-  }
-
-  @override
-  void dispose() {
-    _sub?.cancel();
-    super.dispose();
-  }
-}

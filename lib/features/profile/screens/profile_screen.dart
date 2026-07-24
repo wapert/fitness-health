@@ -1,6 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import '../../../core/services/auth_service.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -84,7 +83,7 @@ class _UserViewState extends State<_UserView> {
     );
     if (confirmed == true) {
       await AuthService.instance.signOut();
-      if (context.mounted) context.go('/login');
+      // StreamBuilder in main.dart detects auth=null and swaps to AuthScreen instantly
     }
   }
 
