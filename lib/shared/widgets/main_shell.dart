@@ -13,6 +13,7 @@ class MainShell extends StatelessWidget {
     (icon: Icons.restaurant_menu,   label: '營養',  path: '/nutrition'),
     (icon: Icons.timer_outlined,    label: '斷食',  path: '/fasting'),
     (icon: Icons.accessibility_new, label: '肌群圖', path: '/body-map'),
+    (icon: Icons.person_outline,    label: '帳號',  path: '/profile'),
   ];
 
   int _currentIndex(BuildContext context) {

@@ -3,33 +3,23 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/training_plan.dart';
 import '../../firebase_options.dart';
 
-/// Syncs training plan data to Firestore using anonymous auth.
+/// Syncs training plan data to Firestore.
 ///
 /// Firestore layout:
 ///   users/{uid}/plan/config          — WeeklyPlanConfig document
 ///   users/{uid}/completed_days/{key} — one doc per completed day
 ///
-/// All methods are no-ops when [kFirebaseConfigured] is false, so the app
-/// works in local-only mode until the project is connected.
+/// All methods silently no-op when [kFirebaseConfigured] is false or the user
+/// is not signed in, so the app works in local-only mode without changes.
 class FirebaseSyncService {
   FirebaseSyncService._();
   static final FirebaseSyncService instance = FirebaseSyncService._();
 
-  FirebaseAuth get _auth => FirebaseAuth.instance;
   FirebaseFirestore get _db => FirebaseFirestore.instance;
 
-  String? _uid;
-
-  Future<String?> _getUid() async {
+  String? get _uid {
     if (!kFirebaseConfigured) return null;
-    if (_uid != null) return _uid;
-    try {
-      final user = _auth.currentUser ?? (await _auth.signInAnonymously()).user;
-      _uid = user?.uid;
-      return _uid;
-    } catch (_) {
-      return null;
-    }
+    return FirebaseAuth.instance.currentUser?.uid;
   }
 
   DocumentReference _configDoc(String uid) =>
@@ -44,7 +34,7 @@ class FirebaseSyncService {
   // ── Config ─────────────────────────────────────────────────────────────────
 
   Future<void> syncConfig(WeeklyPlanConfig config) async {
-    final uid = await _getUid();
+    final uid = _uid;
     if (uid == null) return;
     try {
       await _configDoc(uid).set(config.toJson());
@@ -52,7 +42,7 @@ class FirebaseSyncService {
   }
 
   Future<WeeklyPlanConfig?> fetchConfig() async {
-    final uid = await _getUid();
+    final uid = _uid;
     if (uid == null) return null;
     try {
       final snap = await _configDoc(uid).get();
@@ -66,7 +56,7 @@ class FirebaseSyncService {
   // ── Completed days ─────────────────────────────────────────────────────────
 
   Future<void> setCompletedDay(DateTime date, PlanActivity activity) async {
-    final uid = await _getUid();
+    final uid = _uid;
     if (uid == null) return;
     try {
       final key = CompletedDay.keyFor(date);
@@ -76,7 +66,7 @@ class FirebaseSyncService {
   }
 
   Future<void> deleteCompletedDay(DateTime date) async {
-    final uid = await _getUid();
+    final uid = _uid;
     if (uid == null) return;
     try {
       await _completedDoc(uid, CompletedDay.keyFor(date)).delete();
@@ -84,7 +74,7 @@ class FirebaseSyncService {
   }
 
   Future<Map<String, CompletedDay>> fetchCompleted() async {
-    final uid = await _getUid();
+    final uid = _uid;
     if (uid == null) return {};
     try {
       final snap = await _completedCol(uid).get();
