@@ -22,7 +22,7 @@ final appRouter = GoRouter(
   refreshListenable: _authNotifier,
   redirect: (context, state) {
     final isLoggedIn = AuthService.instance.currentUser != null;
-    final isOnLogin  = state.matchedLocation == '/login';
+    final isOnLogin  = state.uri.path == '/login';
     if (!isLoggedIn && !isOnLogin) return '/login';
     if (isLoggedIn  && isOnLogin)  return '/training';
     return null;
