@@ -210,5 +210,3 @@ class _SignedOutPlaceholder extends StatelessWidget {
     );
   }
 }
-
-}
