@@ -11,6 +11,9 @@ enum PlanActivity {
   final int colorValue;
 }
 
+// Sentinel for copyWith — distinguishes "pass null" from "omit"
+const Object _kSentinel = Object();
+
 /// Weekly plan configuration — how many times per week for each activity
 class WeeklyPlanConfig {
   const WeeklyPlanConfig({
@@ -19,6 +22,7 @@ class WeeklyPlanConfig {
     this.joggingDays   = 0,
     this.fastingDays   = 1,
     required this.startDate,
+    this.customTemplate,
   });
 
   final int trainingDays;
@@ -26,6 +30,12 @@ class WeeklyPlanConfig {
   final int joggingDays;
   final int fastingDays;
   final DateTime startDate;
+  /// User-overridden weekday→activity mapping (drag-drop edits).
+  /// When null the auto-computed [weekTemplate] is used.
+  final Map<int, PlanActivity>? customTemplate;
+
+  /// The effective template: custom overrides if set, otherwise auto-computed.
+  Map<int, PlanActivity> get effectiveTemplate => customTemplate ?? weekTemplate;
 
   int get totalActiveDays =>
       trainingDays + stretchingDays + joggingDays + fastingDays;
@@ -57,6 +67,8 @@ class WeeklyPlanConfig {
     int? stretchingDays,
     int? joggingDays,
     int? fastingDays,
+    // Pass null explicitly to clear the custom template; omit to keep current.
+    Object? customTemplate = _kSentinel,
   }) =>
       WeeklyPlanConfig(
         trainingDays:   trainingDays   ?? this.trainingDays,
@@ -64,24 +76,48 @@ class WeeklyPlanConfig {
         joggingDays:    joggingDays    ?? this.joggingDays,
         fastingDays:    fastingDays    ?? this.fastingDays,
         startDate:      startDate,
+        customTemplate: identical(customTemplate, _kSentinel)
+            ? this.customTemplate
+            : customTemplate as Map<int, PlanActivity>?,
       );
 
-  Map<String, dynamic> toJson() => {
-        'training':   trainingDays,
-        'stretching': stretchingDays,
-        'jogging':    joggingDays,
-        'fasting':    fastingDays,
-        'start':      startDate.toIso8601String(),
+  Map<String, dynamic> toJson() {
+    final j = <String, dynamic>{
+      'training':   trainingDays,
+      'stretching': stretchingDays,
+      'jogging':    joggingDays,
+      'fasting':    fastingDays,
+      'start':      startDate.toIso8601String(),
+    };
+    if (customTemplate != null) {
+      j['template'] = {
+        for (final e in customTemplate!.entries) '${e.key}': e.value.name,
       };
+    }
+    return j;
+  }
 
-  factory WeeklyPlanConfig.fromJson(Map<String, dynamic> j) =>
-      WeeklyPlanConfig(
-        trainingDays:   (j['training']   as int?) ?? 3,
-        stretchingDays: (j['stretching'] as int?) ?? 2,
-        joggingDays:    (j['jogging']    as int?) ?? 0,
-        fastingDays:    (j['fasting']    as int?) ?? 1,
-        startDate: DateTime.tryParse(j['start'] ?? '') ?? DateTime.now(),
-      );
+  factory WeeklyPlanConfig.fromJson(Map<String, dynamic> j) {
+    Map<int, PlanActivity>? template;
+    if (j['template'] is Map) {
+      final t = j['template'] as Map<String, dynamic>;
+      template = {
+        for (final e in t.entries)
+          int.parse(e.key): PlanActivity.values.firstWhere(
+            (a) => a.name == e.value,
+            orElse: () => PlanActivity.rest,
+          ),
+      };
+    }
+    return WeeklyPlanConfig(
+      trainingDays:   (j['training']   as int?) ?? 3,
+      stretchingDays: (j['stretching'] as int?) ?? 2,
+      joggingDays:    (j['jogging']    as int?) ?? 0,
+      fastingDays:    (j['fasting']    as int?) ?? 1,
+      startDate: DateTime.tryParse(j['start'] ?? '') ?? DateTime.now(),
+      customTemplate: template,
+    );
+  }
 }
 
 /// A single day that the user has marked as completed

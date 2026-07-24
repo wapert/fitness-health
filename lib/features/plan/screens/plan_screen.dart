@@ -41,7 +41,7 @@ class _PlanScreenState extends State<PlanScreen> {
     final done = await _service.loadCompleted();
     setState(() {
       if (cfg != null) _config = cfg;
-      _editableTemplate = (cfg ?? _config).weekTemplate;
+      _editableTemplate = (cfg ?? _config).effectiveTemplate;
       _completed = done;
       _loaded = true;
       _showSetup = cfg == null; // first launch → show setup
@@ -49,8 +49,13 @@ class _PlanScreenState extends State<PlanScreen> {
   }
 
   Future<void> _saveConfig() async {
-    await _service.saveConfig(_config);
-    setState(() => _showSetup = false);
+    // Persist the drag-drop template overrides together with the config
+    final saved = _config.copyWith(customTemplate: _editableTemplate);
+    await _service.saveConfig(saved);
+    setState(() {
+      _config = saved;
+      _showSetup = false;
+    });
   }
 
   // ── Event helpers ────────────────────────────────────────────────────────
@@ -251,7 +256,7 @@ class _PlanScreenState extends State<PlanScreen> {
                     activity: PlanActivity.training,
                     count: _config.trainingDays,
                     onChanged: (v) => setState(() {
-                      _config = _config.copyWith(trainingDays: v);
+                      _config = _config.copyWith(trainingDays: v, customTemplate: null);
                       _editableTemplate = _config.weekTemplate;
                     }),
                   ),
@@ -260,7 +265,7 @@ class _PlanScreenState extends State<PlanScreen> {
                     activity: PlanActivity.stretching,
                     count: _config.stretchingDays,
                     onChanged: (v) => setState(() {
-                      _config = _config.copyWith(stretchingDays: v);
+                      _config = _config.copyWith(stretchingDays: v, customTemplate: null);
                       _editableTemplate = _config.weekTemplate;
                     }),
                   ),
@@ -269,7 +274,7 @@ class _PlanScreenState extends State<PlanScreen> {
                     activity: PlanActivity.jogging,
                     count: _config.joggingDays,
                     onChanged: (v) => setState(() {
-                      _config = _config.copyWith(joggingDays: v);
+                      _config = _config.copyWith(joggingDays: v, customTemplate: null);
                       _editableTemplate = _config.weekTemplate;
                     }),
                   ),
@@ -278,7 +283,7 @@ class _PlanScreenState extends State<PlanScreen> {
                     activity: PlanActivity.fasting,
                     count: _config.fastingDays,
                     onChanged: (v) => setState(() {
-                      _config = _config.copyWith(fastingDays: v);
+                      _config = _config.copyWith(fastingDays: v, customTemplate: null);
                       _editableTemplate = _config.weekTemplate;
                     }),
                   ),
@@ -302,8 +307,8 @@ class _PlanScreenState extends State<PlanScreen> {
             ),
           ),
           const SizedBox(height: 6),
-          Row(
-            children: const [
+          const Row(
+            children: [
               Icon(Icons.drag_indicator, size: 14, color: Colors.grey),
               SizedBox(width: 4),
               Text('長按活動圖示可拖曳到其他日期',
@@ -394,7 +399,7 @@ class _PlanScreenState extends State<PlanScreen> {
                       ? 0
                       : thisWeekDone / thisWeekTotal,
                   minHeight: 8,
-                  backgroundColor: scheme.surfaceVariant,
+                  backgroundColor: scheme.surfaceContainerHighest,
                   color: thisWeekDone >= thisWeekTotal
                       ? Colors.green
                       : scheme.primary,
