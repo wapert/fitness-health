@@ -1,5 +1,4 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../firebase_options.dart';
 
 class AuthService {
   AuthService._();
@@ -7,10 +6,9 @@ class AuthService {
 
   FirebaseAuth get _auth => FirebaseAuth.instance;
 
-  User? get currentUser => kFirebaseConfigured ? _auth.currentUser : null;
+  User? get currentUser => _auth.currentUser;
 
-  Stream<User?> get authStateChanges =>
-      kFirebaseConfigured ? _auth.authStateChanges() : const Stream.empty();
+  Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   Future<UserCredential> signIn(String email, String password) =>
       _auth.signInWithEmailAndPassword(email: email, password: password);

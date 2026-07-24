@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/training_plan.dart';
-import '../../firebase_options.dart';
 
 /// Syncs training plan data to Firestore.
 ///
@@ -9,18 +8,14 @@ import '../../firebase_options.dart';
 ///   users/{uid}/plan/config          — WeeklyPlanConfig document
 ///   users/{uid}/completed_days/{key} — one doc per completed day
 ///
-/// All methods silently no-op when [kFirebaseConfigured] is false or the user
-/// is not signed in, so the app works in local-only mode without changes.
+/// All methods silently no-op when the user is not signed in.
 class FirebaseSyncService {
   FirebaseSyncService._();
   static final FirebaseSyncService instance = FirebaseSyncService._();
 
   FirebaseFirestore get _db => FirebaseFirestore.instance;
 
-  String? get _uid {
-    if (!kFirebaseConfigured) return null;
-    return FirebaseAuth.instance.currentUser?.uid;
-  }
+  String? get _uid => FirebaseAuth.instance.currentUser?.uid;
 
   DocumentReference _configDoc(String uid) =>
       _db.collection('users').doc(uid).collection('plan').doc('config');

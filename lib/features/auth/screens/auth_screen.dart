@@ -1,7 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../../core/services/auth_service.dart';
-import '../../../firebase_options.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -114,10 +113,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   const SizedBox(height: 24),
 
                   // ── Form ──────────────────────────────────────────────────
-                  if (!kFirebaseConfigured)
-                    _NotConfiguredBanner()
-                  else
-                    Form(
+                  Form(
                       key: _formKey,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -315,37 +311,6 @@ class _Chip extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-// ── Not-configured banner ─────────────────────────────────────────────────────
-
-class _NotConfiguredBanner extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: scheme.tertiaryContainer,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Icon(Icons.cloud_off, color: scheme.onTertiaryContainer, size: 32),
-          const SizedBox(height: 8),
-          Text('Firebase 尚未設定',
-              style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: scheme.onTertiaryContainer)),
-          const SizedBox(height: 4),
-          Text('請執行 flutterfire configure 連接 Firebase 專案後重新啟動 App',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 13, color: scheme.onTertiaryContainer)),
-        ],
       ),
     );
   }

@@ -12,7 +12,6 @@ import '../../features/plan/screens/plan_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import '../../features/stretching/screens/stretching_home_screen.dart';
 import '../../features/training/screens/training_home_screen.dart';
-import '../../firebase_options.dart';
 import '../services/auth_service.dart';
 import '../../shared/widgets/main_shell.dart';
 
@@ -22,7 +21,6 @@ final appRouter = GoRouter(
   initialLocation: '/training',
   refreshListenable: _authNotifier,
   redirect: (context, state) {
-    if (!kFirebaseConfigured) return null; // local-only mode: no auth gate
     final isLoggedIn = AuthService.instance.currentUser != null;
     final isOnLogin  = state.matchedLocation == '/login';
     if (!isLoggedIn && !isOnLogin) return '/login';
@@ -53,9 +51,7 @@ class _AuthChangeNotifier extends ChangeNotifier {
   StreamSubscription<User?>? _sub;
 
   _AuthChangeNotifier() {
-    if (kFirebaseConfigured) {
-      _sub = AuthService.instance.authStateChanges.listen((_) => notifyListeners());
-    }
+    _sub = AuthService.instance.authStateChanges.listen((_) => notifyListeners());
   }
 
   @override

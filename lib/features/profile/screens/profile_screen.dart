@@ -1,7 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../../core/services/auth_service.dart';
-import '../../../firebase_options.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -10,9 +9,7 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('帳號')),
-      body: kFirebaseConfigured
-          ? _LoggedInBody()
-          : const _NotConfiguredBody(),
+      body: _LoggedInBody(),
     );
   }
 }
@@ -214,33 +211,4 @@ class _SignedOutPlaceholder extends StatelessWidget {
   }
 }
 
-// ── Not-configured view ───────────────────────────────────────────────────────
-
-class _NotConfiguredBody extends StatelessWidget {
-  const _NotConfiguredBody();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.cloud_off, size: 56, color: scheme.outline),
-            const SizedBox(height: 16),
-            const Text('Firebase 尚未設定',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(
-              '請執行 flutterfire configure 連接 Firebase 專案後重新啟動 App，即可啟用帳號功能與雲端同步。',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: scheme.onSurfaceVariant),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
