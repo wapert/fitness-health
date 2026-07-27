@@ -52,6 +52,7 @@ const List<Exercise> strengthExercises = [
     primaryMuscle: MuscleGroup.back,
     secondaryMuscles: [MuscleGroup.glutes, MuscleGroup.hamstrings],
     equipment: Equipment.barbell,
+    videoUrl: 'https://www.youtube.com/watch?v=57dg94gYDI0',
     instructions: ['腳與髖同寬', '槓貼小腿', '脊椎中立拉起', '髖部前推鎖定'],
     tips: ['全程保持中立脊椎', '深呼吸憋氣（Valsalva）護腰', '初學者從羅馬尼亞硬舉開始'],
     sets: 4,
@@ -119,6 +120,7 @@ const List<Exercise> strengthExercises = [
     primaryMuscle: MuscleGroup.glutes,
     secondaryMuscles: [MuscleGroup.quads, MuscleGroup.hamstrings],
     equipment: Equipment.dumbbell,
+    videoUrl: 'https://www.youtube.com/watch?v=kjlfpqXnyL8',
     instructions: [
       '雙腳大幅度打開（約肩寬1.5–2倍），腳尖朝外45°',
       '雙手持啞鈴或壺鈴垂於兩腿之間',
@@ -143,6 +145,7 @@ const List<Exercise> strengthExercises = [
     primaryMuscle: MuscleGroup.glutes,
     secondaryMuscles: [MuscleGroup.quads, MuscleGroup.hamstrings],
     equipment: Equipment.dumbbell,
+    videoUrl: 'https://www.youtube.com/watch?v=SkNsa3eBwLA',
     instructions: [
       '後腳腳背放於椅面或臥推椅上',
       '前腳向前踏一大步，身體直立',
@@ -168,6 +171,7 @@ const List<Exercise> strengthExercises = [
     primaryMuscle: MuscleGroup.glutes,
     secondaryMuscles: [MuscleGroup.quads, MuscleGroup.core],
     equipment: Equipment.dumbbell,
+    videoUrl: 'https://www.youtube.com/watch?v=7-80HiXX1K8',
     instructions: [
       '雙手捧住啞鈴或壺鈴於胸前',
       '雙腳與肩同寬，腳尖微朝外',
@@ -233,6 +237,7 @@ const List<Exercise> strengthExercises = [
     primaryMuscle: MuscleGroup.quads,
     secondaryMuscles: [MuscleGroup.glutes],
     equipment: Equipment.machine,
+    videoUrl: 'https://www.youtube.com/watch?v=nDh_BlnLCGc',
     instructions: ['腳置踏板中段', '下放至膝約 90°', '推起勿鎖死膝關節'],
     sets: 3,
     reps: '12-15',
@@ -246,6 +251,7 @@ const List<Exercise> strengthExercises = [
     type: ExerciseType.strength,
     primaryMuscle: MuscleGroup.calves,
     equipment: Equipment.machine,
+    videoUrl: 'https://www.youtube.com/watch?v=n-5T_oYc1oU',
     instructions: ['踮至最高點停留', '緩慢下降到底伸展', '全範圍動作'],
     tips: ['小腿需要高容量訓練：15-20 下 × 4-5 組'],
     sets: 4,
@@ -287,6 +293,7 @@ const List<Exercise> strengthExercises = [
     type: ExerciseType.strength,
     primaryMuscle: MuscleGroup.core,
     equipment: Equipment.bodyweight,
+    videoUrl: 'https://www.youtube.com/watch?v=xe2MXatLTUw',
     instructions: [
       '雙手肘撐地，手肘在肩膀正下方',
       '腳尖點地，身體呈一直線',
@@ -309,6 +316,7 @@ const List<Exercise> strengthExercises = [
     type: ExerciseType.strength,
     primaryMuscle: MuscleGroup.core,
     equipment: Equipment.bodyweight,
+    videoUrl: 'https://www.youtube.com/watch?v=Dbr2J9375oo',
     instructions: [
       '仰躺屈膝，腳掌平踩地面',
       '雙手輕放耳側（不要抱頭拉脖子）',
@@ -332,6 +340,7 @@ const List<Exercise> strengthExercises = [
     type: ExerciseType.strength,
     primaryMuscle: MuscleGroup.core,
     equipment: Equipment.bodyweight,
+    videoUrl: 'https://www.youtube.com/watch?v=zechBkcIMf0',
     instructions: [
       '仰躺，雙手垂直舉起，雙腿屈膝 90°',
       '下背緊貼地面（全程保持）',
@@ -354,6 +363,7 @@ const List<Exercise> strengthExercises = [
     type: ExerciseType.strength,
     primaryMuscle: MuscleGroup.core,
     equipment: Equipment.bodyweight,
+    videoUrl: 'https://www.youtube.com/watch?v=_d5cpAre7_w',
     instructions: [
       '坐姿，雙腳離地，身體後傾約 45°',
       '雙手合掌或持重物',
@@ -376,6 +386,7 @@ const List<Exercise> strengthExercises = [
     type: ExerciseType.strength,
     primaryMuscle: MuscleGroup.core,
     equipment: Equipment.bodyweight,
+    videoUrl: 'https://www.youtube.com/watch?v=Pr1ieGZ5atk',
     instructions: [
       '正握懸吊於單槓',
       '核心收緊，避免身體搖擺',
@@ -398,6 +409,7 @@ const List<Exercise> strengthExercises = [
     type: ExerciseType.strength,
     primaryMuscle: MuscleGroup.core,
     equipment: Equipment.bodyweight,
+    videoUrl: 'https://www.youtube.com/watch?v=fpmWW6iXfes',
     instructions: [
       '伏地挺身起始姿勢，手臂伸直',
       '核心收緊，身體保持水平',
@@ -420,6 +432,7 @@ const List<Exercise> strengthExercises = [
     type: ExerciseType.strength,
     primaryMuscle: MuscleGroup.core,
     equipment: Equipment.bodyweight,
+    videoUrl: 'https://www.youtube.com/watch?v=fLkJT44bRHo',
     instructions: [
       '側臥，單手肘撐地，手肘在肩膀正下方',
       '身體離地成一直線',
@@ -442,6 +455,7 @@ const List<Exercise> strengthExercises = [
     type: ExerciseType.strength,
     primaryMuscle: MuscleGroup.core,
     equipment: Equipment.machine,
+    videoUrl: 'https://www.youtube.com/watch?v=9ZCoAbI7uX0',
     instructions: [
       '跪姿持腹輪，手臂伸直',
       '核心用力，身體緩慢向前滾出',

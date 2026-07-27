@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../../core/models/training_plan.dart';
+import '../../../core/models/exercise.dart';
+import '../data/exercise_lookup.dart';
 import '../services/plan_service.dart';
+import '../services/exercise_schedule_service.dart';
 import '../widgets/activity_count_row.dart';
 import '../widgets/week_preview.dart';
 
@@ -14,6 +17,7 @@ class PlanScreen extends StatefulWidget {
 
 class _PlanScreenState extends State<PlanScreen> {
   final _service = PlanService();
+  final _scheduleService = ExerciseScheduleService();
 
   WeeklyPlanConfig _config = WeeklyPlanConfig(
     trainingDays: 3,
@@ -25,6 +29,7 @@ class _PlanScreenState extends State<PlanScreen> {
 
   Map<String, CompletedDay> _completed = {};
   Map<int, PlanActivity> _editableTemplate = {};  // user-edited week template
+  Map<int, List<String>> _exerciseSchedule = {};  // weekday → exerciseIds
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
   bool _loaded = false;
@@ -39,13 +44,30 @@ class _PlanScreenState extends State<PlanScreen> {
   Future<void> _load() async {
     final cfg  = await _service.loadConfig();
     final done = await _service.loadCompleted();
+    final sched = await _scheduleService.load();
     setState(() {
       if (cfg != null) _config = cfg;
       _editableTemplate = (cfg ?? _config).effectiveTemplate;
       _completed = done;
+      _exerciseSchedule = sched;
       _loaded = true;
       _showSetup = cfg == null; // first launch → show setup
     });
+  }
+
+  List<Exercise> _exercisesForWeekday(int weekday) =>
+      (_exerciseSchedule[weekday] ?? const [])
+          .map(exerciseById)
+          .whereType<Exercise>()
+          .toList();
+
+  int _exerciseCountFor(DateTime d) =>
+      _exerciseSchedule[d.weekday]?.length ?? 0;
+
+  Future<void> _removeScheduledExercise(int weekday, String exerciseId) async {
+    final next =
+        await _scheduleService.toggle(_exerciseSchedule, weekday, exerciseId);
+    setState(() => _exerciseSchedule = next);
   }
 
   Future<void> _saveConfig() async {
@@ -95,8 +117,10 @@ class _PlanScreenState extends State<PlanScreen> {
 
   void _showDayDetail(DateTime day) {
     final activity = _activityFor(day);
-    if (activity == null && !_isDone(day)) {
-      // Rest day — show briefly
+    final scheduled = _exercisesForWeekday(day.weekday);
+
+    // Nothing to show → brief rest-day toast.
+    if (activity == null && !_isDone(day) && scheduled.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('${_dateLabel(day)} — 休息日 😴'),
@@ -105,98 +129,162 @@ class _PlanScreenState extends State<PlanScreen> {
       );
       return;
     }
+
+    final hasActivity = activity != null;
     final eff = activity ?? PlanActivity.training;
-    final color = Color(eff.colorValue);
+    final color = hasActivity ? Color(eff.colorValue) : Colors.blueGrey;
     final done = _isDone(day);
+    final headerEmoji = hasActivity ? eff.emoji : '📋';
+    final headerLabel = hasActivity ? eff.label : '自訂練習';
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-                width: 40, height: 4,
-                decoration: BoxDecoration(
-                    color: Colors.grey.withAlpha(80),
-                    borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Container(
-                  width: 52, height: 52,
-                  decoration: BoxDecoration(
-                    color: color.withAlpha(40),
-                    borderRadius: BorderRadius.circular(14),
+      builder: (_) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final dayExercises = _exercisesForWeekday(day.weekday);
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 24, right: 24, top: 16,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                        width: 40, height: 4,
+                        decoration: BoxDecoration(
+                            color: Colors.grey.withAlpha(80),
+                            borderRadius: BorderRadius.circular(2))),
                   ),
-                  child: Center(
-                    child: Text(eff.emoji,
-                        style: const TextStyle(fontSize: 26)),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Container(
+                        width: 52, height: 52,
+                        decoration: BoxDecoration(
+                          color: color.withAlpha(40),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Center(
+                          child: Text(headerEmoji,
+                              style: const TextStyle(fontSize: 26)),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(_dateLabel(day),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 16)),
+                            Text(headerLabel,
+                                style: TextStyle(color: color, fontSize: 14)),
+                          ],
+                        ),
+                      ),
+                      if (done)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withAlpha(40),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.check_circle,
+                                  size: 16, color: Colors.green),
+                              SizedBox(width: 4),
+                              Text('完成', style: TextStyle(color: Colors.green)),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 14),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(_dateLabel(day),
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 16)),
-                    Text(eff.label,
-                        style: TextStyle(color: color, fontSize: 14)),
-                  ],
-                ),
-                const Spacer(),
-                if (done)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.green.withAlpha(40),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
+
+                  // ── Scheduled exercises ──────────────────────────────
+                  if (dayExercises.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    Row(
                       children: [
-                        Icon(Icons.check_circle,
-                            size: 16, color: Colors.green),
-                        SizedBox(width: 4),
-                        Text('完成', style: TextStyle(color: Colors.green)),
+                        const Icon(Icons.fitness_center, size: 16),
+                        const SizedBox(width: 6),
+                        Text('本日動作 (${dayExercises.length})',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 14)),
                       ],
                     ),
-                  ),
-              ],
+                    const SizedBox(height: 8),
+                    ...dayExercises.map((e) => Card(
+                          margin: const EdgeInsets.only(bottom: 6),
+                          child: ListTile(
+                            dense: true,
+                            leading: CircleAvatar(
+                              radius: 16,
+                              backgroundColor:
+                                  Theme.of(context).colorScheme.primaryContainer,
+                              child: Text(e.primaryMuscle.label[0],
+                                  style: const TextStyle(fontSize: 12)),
+                            ),
+                            title: Text(e.nameChinese,
+                                style: const TextStyle(fontSize: 14)),
+                            subtitle: Text(
+                              e.type == ExerciseType.stretch ? '伸展' : '重訓',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.close, size: 18),
+                              tooltip: '移除',
+                              onPressed: () async {
+                                await _removeScheduledExercise(
+                                    day.weekday, e.id);
+                                setSheetState(() {});
+                              },
+                            ),
+                          ),
+                        )),
+                  ],
+
+                  // ── Complete toggle (only for planned activities) ────
+                  if (hasActivity) ...[
+                    const SizedBox(height: 20),
+                    done
+                        ? OutlinedButton.icon(
+                            onPressed: () {
+                              _toggleDay(day, eff);
+                              Navigator.pop(context);
+                            },
+                            icon: const Icon(Icons.undo),
+                            label: const Text('取消完成'),
+                          )
+                        : FilledButton.icon(
+                            onPressed: () {
+                              _toggleDay(day, eff);
+                              Navigator.pop(context);
+                            },
+                            icon: const Icon(Icons.check),
+                            label: const Text('標記為完成 ✓'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: color,
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                          ),
+                  ],
+                  const SizedBox(height: 8),
+                ],
+              ),
             ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: done
-                  ? OutlinedButton.icon(
-                      onPressed: () {
-                        _toggleDay(day, eff);
-                        Navigator.pop(context);
-                      },
-                      icon: const Icon(Icons.undo),
-                      label: const Text('取消完成'),
-                    )
-                  : FilledButton.icon(
-                      onPressed: () {
-                        _toggleDay(day, eff);
-                        Navigator.pop(context);
-                      },
-                      icon: const Icon(Icons.check),
-                      label: const Text('標記為完成 ✓'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: color,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                    ),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -430,25 +518,50 @@ class _PlanScreenState extends State<PlanScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: PlanActivity.values
-                .where((a) => a != PlanActivity.rest)
-                .map((a) => Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 12, height: 12,
-                          decoration: BoxDecoration(
-                            color: Color(a.colorValue),
-                            borderRadius: BorderRadius.circular(3),
+            children: [
+              ...PlanActivity.values
+                  .where((a) => a != PlanActivity.rest)
+                  .map((a) => Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 12, height: 12,
+                            decoration: BoxDecoration(
+                              color: Color(a.colorValue),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(a.label,
-                            style: const TextStyle(
-                                fontSize: 11, color: Colors.grey)),
-                      ],
-                    ))
-                .toList(),
+                          const SizedBox(width: 4),
+                          Text(a.label,
+                              style: const TextStyle(
+                                  fontSize: 11, color: Colors.grey)),
+                        ],
+                      )),
+              // Custom-exercise badge legend
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 14, height: 14,
+                    decoration: const BoxDecoration(
+                      color: _exerciseBadgeColor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Center(
+                      child: Text('N',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 8,
+                              fontWeight: FontWeight.bold,
+                              height: 1)),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Text('動作',
+                      style: TextStyle(fontSize: 11, color: Colors.grey)),
+                ],
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 8),
@@ -460,7 +573,7 @@ class _PlanScreenState extends State<PlanScreen> {
               firstDay: DateTime.utc(2025, 1, 1),
               lastDay: DateTime.utc(2027, 12, 31),
               focusedDay: _focusedDay,
-              rowHeight: 72,            // taller rows
+              rowHeight: 48,            // compact rows so the month fits
               daysOfWeekHeight: 28,
               selectedDayPredicate: (d) =>
                   _selectedDay != null && isSameDay(_selectedDay!, d),
@@ -496,25 +609,25 @@ class _PlanScreenState extends State<PlanScreen> {
                   date: date, activity: _activityFor(date),
                   done: _isDone(date), isToday: false,
                   isSelected: _selectedDay != null && isSameDay(_selectedDay!, date),
-                  isOutside: false,
+                  isOutside: false, exerciseCount: _exerciseCountFor(date),
                 ),
                 todayBuilder: (_, date, __) => _DayCell(
                   date: date, activity: _activityFor(date),
                   done: _isDone(date), isToday: true,
                   isSelected: _selectedDay != null && isSameDay(_selectedDay!, date),
-                  isOutside: false,
+                  isOutside: false, exerciseCount: _exerciseCountFor(date),
                 ),
                 selectedBuilder: (_, date, __) => _DayCell(
                   date: date, activity: _activityFor(date),
                   done: _isDone(date),
                   isToday: isSameDay(date, DateTime.now()),
                   isSelected: true,
-                  isOutside: false,
+                  isOutside: false, exerciseCount: _exerciseCountFor(date),
                 ),
                 outsideBuilder: (_, date, __) => _DayCell(
                   date: date, activity: null,
                   done: false, isToday: false,
-                  isSelected: false, isOutside: true,
+                  isSelected: false, isOutside: true, exerciseCount: 0,
                 ),
               ),
             ),
@@ -542,6 +655,7 @@ class _DayCell extends StatelessWidget {
     required this.isToday,
     required this.isSelected,
     required this.isOutside,
+    required this.exerciseCount,
   });
 
   final DateTime date;
@@ -550,6 +664,7 @@ class _DayCell extends StatelessWidget {
   final bool isToday;
   final bool isSelected;
   final bool isOutside;
+  final int exerciseCount;
 
   @override
   Widget build(BuildContext context) {
@@ -564,7 +679,7 @@ class _DayCell extends StatelessWidget {
             ? Border.all(color: scheme.primary, width: 1.5)
             : null;
 
-    return Container(
+    final cell = Container(
       margin: const EdgeInsets.all(2),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
@@ -574,67 +689,74 @@ class _DayCell extends StatelessWidget {
         border: border,
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           // ── Day number ─────────────────────────────────────
-          Expanded(
-            child: Center(
-              child: Text(
-                '${date.day}',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight:
-                      isToday || isSelected ? FontWeight.bold : FontWeight.w500,
-                  color: isOutside
-                      ? Colors.grey.withAlpha(80)
-                      : isToday
-                          ? scheme.primary
-                          : null,
-                ),
-              ),
+          Text(
+            '${date.day}',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight:
+                  isToday || isSelected ? FontWeight.bold : FontWeight.w500,
+              color: isOutside
+                  ? Colors.grey.withAlpha(80)
+                  : isToday
+                      ? scheme.primary
+                      : null,
             ),
           ),
+          const SizedBox(height: 3),
 
-          // ── Activity colour strip ──────────────────────────
-          if (hasAct)
-            Container(
-              height: 26,
-              decoration: BoxDecoration(
-                color: done
-                    ? actColor!.withAlpha(220)   // solid when done
-                    : actColor!.withAlpha(55),   // subtle when pending
-                borderRadius: const BorderRadius.vertical(
-                    bottom: Radius.circular(6)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(activity!.emoji,
-                      style: const TextStyle(fontSize: 11)),
-                  const SizedBox(width: 2),
-                  // Checkbox icon
-                  Icon(
-                    done
-                        ? Icons.check_box_rounded
-                        : Icons.check_box_outline_blank_rounded,
-                    size: 14,
-                    color: done ? Colors.white : actColor,
+          // ── Below the date: activity dot + custom-exercise count ──
+          SizedBox(
+            height: 15,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (hasAct)
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: done ? actColor : Colors.transparent,
+                      border: Border.all(color: actColor!, width: 1.5),
+                    ),
                   ),
-                ],
-              ),
-            )
-          else
-            // Rest day — thin neutral bottom bar
-            Container(
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.withAlpha(isOutside ? 10 : 25),
-                borderRadius: const BorderRadius.vertical(
-                    bottom: Radius.circular(6)),
-              ),
+                if (hasAct && exerciseCount > 0 && !isOutside)
+                  const SizedBox(width: 3),
+                if (exerciseCount > 0 && !isOutside)
+                  Container(
+                    constraints:
+                        const BoxConstraints(minWidth: 15, minHeight: 15),
+                    padding: const EdgeInsets.all(1.5),
+                    decoration: const BoxDecoration(
+                      color: _exerciseBadgeColor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        '$exerciseCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
+          ),
         ],
       ),
     );
+
+    return cell;
   }
 }
+
+// Blue badge marking days with custom-scheduled exercises.
+const Color _exerciseBadgeColor = Color(0xFF2563EB);

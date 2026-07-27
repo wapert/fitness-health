@@ -47,6 +47,12 @@ dependencies:
   # URL launcher (open YouTube videos in browser)
   url_launcher: ^6.3.2
 
+  # In-app YouTube playback (Android/iOS/macOS/Web) via official IFrame API
+  youtube_player_iframe: ^6.0.2
+
+  # Interactive anatomical muscle map (SVG, front/back)
+  flutter_body_atlas: ^0.1.4
+
   # Utilities
   intl: ^0.19.0
   shared_preferences: ^2.2.3

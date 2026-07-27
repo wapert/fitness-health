@@ -9,6 +9,48 @@ enum NutritionGoal {
   final String description;
 }
 
+enum MealType {
+  breakfast('早餐', '🌅'),
+  lunch('午餐', '☀️'),
+  dinner('晚餐', '🌙'),
+  snack('點心', '🍎');
+
+  const MealType(this.label, this.emoji);
+  final String label;
+  final String emoji;
+}
+
+/// A curated recommended meal with ingredients, macros and a simple recipe.
+class Meal {
+  const Meal({
+    required this.id,
+    required this.name,
+    required this.emoji,
+    required this.type,
+    required this.goals,
+    required this.calories,
+    required this.proteinG,
+    required this.carbsG,
+    required this.fatG,
+    required this.ingredients,
+    required this.steps,
+    this.tip,
+  });
+
+  final String id;
+  final String name;
+  final String emoji;
+  final MealType type;
+  final List<NutritionGoal> goals;
+  final int calories;
+  final int proteinG;
+  final int carbsG;
+  final int fatG;
+  final List<String> ingredients;
+  final List<String> steps;
+  final String? tip;
+}
+
 class FoodItem {
   const FoodItem({
     required this.id,

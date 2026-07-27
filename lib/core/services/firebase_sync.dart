@@ -81,4 +81,37 @@ class FirebaseSyncService {
       return {};
     }
   }
+
+  // ── Exercise schedule (weekday → exerciseIds) ────────────────────────────────
+
+  DocumentReference _exerciseScheduleDoc(String uid) => _db
+      .collection('users')
+      .doc(uid)
+      .collection('plan')
+      .doc('exercise_schedule');
+
+  Future<void> syncExerciseSchedule(Map<int, List<String>> schedule) async {
+    final uid = _uid;
+    if (uid == null) return;
+    try {
+      await _exerciseScheduleDoc(uid).set(
+          {for (final e in schedule.entries) '${e.key}': e.value});
+    } catch (_) {}
+  }
+
+  Future<Map<int, List<String>>> fetchExerciseSchedule() async {
+    final uid = _uid;
+    if (uid == null) return {};
+    try {
+      final snap = await _exerciseScheduleDoc(uid).get();
+      if (!snap.exists) return {};
+      final data = snap.data()! as Map<String, dynamic>;
+      return {
+        for (final e in data.entries)
+          int.parse(e.key): List<String>.from(e.value as List),
+      };
+    } catch (_) {
+      return {};
+    }
+  }
 }

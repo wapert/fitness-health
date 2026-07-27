@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/models/nutrition.dart';
+import '../data/meals_data.dart';
+import '../widgets/meal_card.dart';
 
 class NutritionHomeScreen extends StatefulWidget {
   const NutritionHomeScreen({super.key});
@@ -104,6 +106,23 @@ class _NutritionHomeScreenState extends State<NutritionHomeScreen> {
               ),
             ),
           ),
+          const SizedBox(height: 20),
+
+          // Recommended meals for the selected goal
+          Row(
+            children: [
+              const Text('🍽️', style: TextStyle(fontSize: 20)),
+              const SizedBox(width: 8),
+              Text('${_goal.label}推薦餐點',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 16)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text('點擊展開查看食材、作法與營養資訊（每份為概略估算）',
+              style: TextStyle(fontSize: 12, color: Colors.grey)),
+          const SizedBox(height: 10),
+          ...mealsForGoal(_goal).map((m) => MealCard(meal: m)),
         ],
       ),
     );

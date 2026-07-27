@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/models/exercise.dart';
 import '../../../shared/widgets/youtube_player.dart';
+import '../../plan/widgets/add_to_schedule_sheet.dart';
 
 class ExerciseCard extends StatelessWidget {
   const ExerciseCard({super.key, required this.exercise});
@@ -78,6 +79,17 @@ class ExerciseCard extends StatelessWidget {
                     ),
                   ),
                 ],
+
+                // ── Add to weekly schedule ─────────────────────────────
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => showAddToScheduleSheet(context, exercise),
+                    icon: const Icon(Icons.add_task, size: 18),
+                    label: const Text('加入每週計畫'),
+                  ),
+                ),
               ],
             ),
           ),
