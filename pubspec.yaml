@@ -72,6 +72,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.1
   build_runner: ^2.4.11
   freezed: ^2.5.2
   json_serializable: ^6.8.0
@@ -85,3 +86,11 @@ flutter:
     - assets/images/
     - assets/animations/
     - assets/audio/
+
+flutter_launcher_icons:
+  image_path: "assets/icon/app_icon.png"
+  ios: true
+  remove_alpha_ios: true
+  android: true
+  adaptive_icon_background: "#2563EB"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
