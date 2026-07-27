@@ -28,6 +28,7 @@ class FitnessApp extends StatelessWidget {
         if (!isLoggedIn) {
           return MaterialApp(
             title: '全方位健身',
+            debugShowCheckedModeBanner: false,
             theme: AppTheme.light,
             darkTheme: AppTheme.dark,
             home: const AuthScreen(),
@@ -37,6 +38,7 @@ class FitnessApp extends StatelessWidget {
         // Signed in → full app with bottom-nav router
         return MaterialApp.router(
           title: '全方位健身',
+          debugShowCheckedModeBanner: false,
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,
           routerConfig: appRouter,
