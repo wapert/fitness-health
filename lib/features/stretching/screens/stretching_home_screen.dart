@@ -35,7 +35,6 @@ class _StretchingHomeScreenState extends State<StretchingHomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('伸展 Stretching'),
-        backgroundColor: scheme.secondaryContainer,
       ),
       body: Column(
         children: [

@@ -12,11 +12,9 @@ class JoggingHomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: const Text('超慢跑 Super Slow Jogging'),
-        backgroundColor: scheme.secondaryContainer,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
