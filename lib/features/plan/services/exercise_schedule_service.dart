@@ -6,6 +6,7 @@ import '../../../core/services/firebase_sync.dart';
 /// Local-first (SharedPreferences) with background Firebase sync.
 class ExerciseScheduleService {
   static const _key = 'exercise_schedule_v1';
+  static const _completedKey = 'completed_exercises_v1';
   final _sync = FirebaseSyncService.instance;
 
   Future<Map<int, List<String>>> load() async {
@@ -55,6 +56,61 @@ class ExerciseScheduleService {
     if (remote.isEmpty) return;
     await prefs.setString(_key, json.encode(_encode(remote)));
   }
+
+  // ── Completed exercises (dateKey → set of exerciseIds) ─────────────────────
+
+  Future<Map<String, Set<String>>> loadCompletedExercises() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_completedKey);
+
+    if (raw != null) {
+      try {
+        final local = _decodeCompleted(json.decode(raw) as Map<String, dynamic>);
+        _refreshCompletedFromFirebase(prefs); // background
+        return local;
+      } catch (_) {}
+    }
+
+    final remote = await _sync.fetchCompletedExercises();
+    if (remote.isNotEmpty) {
+      await prefs.setString(_completedKey, json.encode(_encodeCompleted(remote)));
+    }
+    return remote;
+  }
+
+  /// Toggle a single exercise done/undone for a given date key.
+  Future<Map<String, Set<String>>> toggleExerciseDone(
+      Map<String, Set<String>> current,
+      String dateKey,
+      String exerciseId) async {
+    final next = {
+      for (final e in current.entries) e.key: Set<String>.from(e.value),
+    };
+    final set = next.putIfAbsent(dateKey, () => <String>{});
+    if (set.contains(exerciseId)) {
+      set.remove(exerciseId);
+      if (set.isEmpty) next.remove(dateKey);
+    } else {
+      set.add(exerciseId);
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_completedKey, json.encode(_encodeCompleted(next)));
+    _sync.syncCompletedExercises(next); // fire-and-forget
+    return next;
+  }
+
+  Future<void> _refreshCompletedFromFirebase(SharedPreferences prefs) async {
+    final remote = await _sync.fetchCompletedExercises();
+    if (remote.isEmpty) return;
+    await prefs.setString(_completedKey, json.encode(_encodeCompleted(remote)));
+  }
+
+  Map<String, dynamic> _encodeCompleted(Map<String, Set<String>> m) =>
+      {for (final e in m.entries) e.key: e.value.toList()};
+
+  Map<String, Set<String>> _decodeCompleted(Map<String, dynamic> j) => {
+        for (final e in j.entries) e.key: Set<String>.from(e.value as List),
+      };
 
   Map<String, dynamic> _encode(Map<int, List<String>> m) =>
       {for (final e in m.entries) '${e.key}': e.value};

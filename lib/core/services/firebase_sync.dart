@@ -114,4 +114,36 @@ class FirebaseSyncService {
       return {};
     }
   }
+
+  // ── Completed exercises (dateKey → exerciseIds done that date) ───────────────
+
+  DocumentReference _completedExercisesDoc(String uid) => _db
+      .collection('users')
+      .doc(uid)
+      .collection('plan')
+      .doc('completed_exercises');
+
+  Future<void> syncCompletedExercises(Map<String, Set<String>> data) async {
+    final uid = _uid;
+    if (uid == null) return;
+    try {
+      await _completedExercisesDoc(uid)
+          .set({for (final e in data.entries) e.key: e.value.toList()});
+    } catch (_) {}
+  }
+
+  Future<Map<String, Set<String>>> fetchCompletedExercises() async {
+    final uid = _uid;
+    if (uid == null) return {};
+    try {
+      final snap = await _completedExercisesDoc(uid).get();
+      if (!snap.exists) return {};
+      final data = snap.data()! as Map<String, dynamic>;
+      return {
+        for (final e in data.entries) e.key: Set<String>.from(e.value as List),
+      };
+    } catch (_) {
+      return {};
+    }
+  }
 }

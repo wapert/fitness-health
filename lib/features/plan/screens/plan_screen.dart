@@ -30,6 +30,7 @@ class _PlanScreenState extends State<PlanScreen> {
   Map<String, CompletedDay> _completed = {};
   Map<int, PlanActivity> _editableTemplate = {};  // user-edited week template
   Map<int, List<String>> _exerciseSchedule = {};  // weekday → exerciseIds
+  Map<String, Set<String>> _completedExercises = {}; // dateKey → done exerciseIds
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
   bool _loaded = false;
@@ -45,11 +46,13 @@ class _PlanScreenState extends State<PlanScreen> {
     final cfg  = await _service.loadConfig();
     final done = await _service.loadCompleted();
     final sched = await _scheduleService.load();
+    final exDone = await _scheduleService.loadCompletedExercises();
     setState(() {
       if (cfg != null) _config = cfg;
       _editableTemplate = (cfg ?? _config).effectiveTemplate;
       _completed = done;
       _exerciseSchedule = sched;
+      _completedExercises = exDone;
       _loaded = true;
       _showSetup = cfg == null; // first launch → show setup
     });
@@ -63,6 +66,30 @@ class _PlanScreenState extends State<PlanScreen> {
 
   int _exerciseCountFor(DateTime d) =>
       _exerciseSchedule[d.weekday]?.length ?? 0;
+
+  /// How many of the day's scheduled exercises are marked done on this date.
+  int _exerciseDoneCountFor(DateTime d) {
+    final done = _completedExercises[CompletedDay.keyFor(d)];
+    if (done == null) return 0;
+    final scheduled = _exerciseSchedule[d.weekday] ?? const [];
+    return scheduled.where(done.contains).length;
+  }
+
+  bool _isExerciseDone(DateTime d, String id) =>
+      _completedExercises[CompletedDay.keyFor(d)]?.contains(id) ?? false;
+
+  Future<void> _toggleExerciseDone(DateTime d, String id) async {
+    final next = await _scheduleService.toggleExerciseDone(
+        _completedExercises, CompletedDay.keyFor(d), id);
+    setState(() => _completedExercises = next);
+  }
+
+  /// True when the calendar date is strictly before today (date-only).
+  bool _isPast(DateTime d) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return DateTime(d.year, d.month, d.day).isBefore(today);
+  }
 
   Future<void> _removeScheduledExercise(int weekday, String exerciseId) async {
     final next =
@@ -213,44 +240,65 @@ class _PlanScreenState extends State<PlanScreen> {
                   // ── Scheduled exercises ──────────────────────────────
                   if (dayExercises.isNotEmpty) ...[
                     const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        const Icon(Icons.fitness_center, size: 16),
-                        const SizedBox(width: 6),
-                        Text('本日動作 (${dayExercises.length})',
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 14)),
-                      ],
-                    ),
+                    Builder(builder: (_) {
+                      final doneCount = dayExercises
+                          .where((e) => _isExerciseDone(day, e.id))
+                          .length;
+                      return Row(
+                        children: [
+                          const Icon(Icons.fitness_center, size: 16),
+                          const SizedBox(width: 6),
+                          Text('本日動作 ($doneCount/${dayExercises.length})',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 14)),
+                          const Spacer(),
+                          if (doneCount == dayExercises.length)
+                            const Text('全部完成 ✓',
+                                style: TextStyle(
+                                    fontSize: 12, color: Colors.green)),
+                        ],
+                      );
+                    }),
                     const SizedBox(height: 8),
-                    ...dayExercises.map((e) => Card(
-                          margin: const EdgeInsets.only(bottom: 6),
-                          child: ListTile(
-                            dense: true,
-                            leading: CircleAvatar(
-                              radius: 16,
-                              backgroundColor:
-                                  Theme.of(context).colorScheme.primaryContainer,
-                              child: Text(e.primaryMuscle.label[0],
-                                  style: const TextStyle(fontSize: 12)),
-                            ),
-                            title: Text(e.nameChinese,
-                                style: const TextStyle(fontSize: 14)),
-                            subtitle: Text(
-                              e.type == ExerciseType.stretch ? '伸展' : '重訓',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.close, size: 18),
-                              tooltip: '移除',
-                              onPressed: () async {
-                                await _removeScheduledExercise(
-                                    day.weekday, e.id);
-                                setSheetState(() {});
-                              },
+                    ...dayExercises.map((e) {
+                      final exDone = _isExerciseDone(day, e.id);
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 6),
+                        child: ListTile(
+                          dense: true,
+                          leading: Checkbox(
+                            value: exDone,
+                            onChanged: (_) async {
+                              await _toggleExerciseDone(day, e.id);
+                              setSheetState(() {});
+                            },
+                          ),
+                          title: Text(
+                            e.nameChinese,
+                            style: TextStyle(
+                              fontSize: 14,
+                              decoration: exDone
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                              color: exDone ? Colors.grey : null,
                             ),
                           ),
-                        )),
+                          subtitle: Text(
+                            '${e.primaryMuscle.label} · '
+                            '${e.type == ExerciseType.stretch ? '伸展' : '重訓'}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.close, size: 18),
+                            tooltip: '移除',
+                            onPressed: () async {
+                              await _removeScheduledExercise(day.weekday, e.id);
+                              setSheetState(() {});
+                            },
+                          ),
+                        ),
+                      );
+                    }),
                   ],
 
                   // ── Complete toggle (only for planned activities) ────
@@ -609,25 +657,32 @@ class _PlanScreenState extends State<PlanScreen> {
                   date: date, activity: _activityFor(date),
                   done: _isDone(date), isToday: false,
                   isSelected: _selectedDay != null && isSameDay(_selectedDay!, date),
-                  isOutside: false, exerciseCount: _exerciseCountFor(date),
+                  isOutside: false, isPast: _isPast(date),
+                  exerciseCount: _exerciseCountFor(date),
+                  exerciseDoneCount: _exerciseDoneCountFor(date),
                 ),
                 todayBuilder: (_, date, __) => _DayCell(
                   date: date, activity: _activityFor(date),
                   done: _isDone(date), isToday: true,
                   isSelected: _selectedDay != null && isSameDay(_selectedDay!, date),
-                  isOutside: false, exerciseCount: _exerciseCountFor(date),
+                  isOutside: false, isPast: false,
+                  exerciseCount: _exerciseCountFor(date),
+                  exerciseDoneCount: _exerciseDoneCountFor(date),
                 ),
                 selectedBuilder: (_, date, __) => _DayCell(
                   date: date, activity: _activityFor(date),
                   done: _isDone(date),
                   isToday: isSameDay(date, DateTime.now()),
                   isSelected: true,
-                  isOutside: false, exerciseCount: _exerciseCountFor(date),
+                  isOutside: false, isPast: _isPast(date),
+                  exerciseCount: _exerciseCountFor(date),
+                  exerciseDoneCount: _exerciseDoneCountFor(date),
                 ),
                 outsideBuilder: (_, date, __) => _DayCell(
                   date: date, activity: null,
                   done: false, isToday: false,
-                  isSelected: false, isOutside: true, exerciseCount: 0,
+                  isSelected: false, isOutside: true, isPast: _isPast(date),
+                  exerciseCount: 0, exerciseDoneCount: 0,
                 ),
               ),
             ),
@@ -655,7 +710,9 @@ class _DayCell extends StatelessWidget {
     required this.isToday,
     required this.isSelected,
     required this.isOutside,
+    required this.isPast,
     required this.exerciseCount,
+    required this.exerciseDoneCount,
   });
 
   final DateTime date;
@@ -664,7 +721,9 @@ class _DayCell extends StatelessWidget {
   final bool isToday;
   final bool isSelected;
   final bool isOutside;
+  final bool isPast;
   final int exerciseCount;
+  final int exerciseDoneCount;
 
   @override
   Widget build(BuildContext context) {
@@ -707,7 +766,10 @@ class _DayCell extends StatelessWidget {
           ),
           const SizedBox(height: 3),
 
-          // ── Below the date: activity dot + custom-exercise count ──
+          // ── Below the date: activity dot + custom-exercise badge ──
+          //  Activity dot: SOLID while upcoming; HOLLOW once past or completed.
+          //  Exercise badge: SOLID + count while pending; HOLLOW ring once all
+          //  scheduled exercises for the date are completed.
           SizedBox(
             height: 15,
             child: Row(
@@ -720,33 +782,15 @@ class _DayCell extends StatelessWidget {
                     height: 8,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: done ? actColor : Colors.transparent,
+                      // solid only when still upcoming and not completed
+                      color: (!done && !isPast) ? actColor : Colors.transparent,
                       border: Border.all(color: actColor!, width: 1.5),
                     ),
                   ),
                 if (hasAct && exerciseCount > 0 && !isOutside)
                   const SizedBox(width: 3),
                 if (exerciseCount > 0 && !isOutside)
-                  Container(
-                    constraints:
-                        const BoxConstraints(minWidth: 15, minHeight: 15),
-                    padding: const EdgeInsets.all(1.5),
-                    decoration: const BoxDecoration(
-                      color: _exerciseBadgeColor,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        '$exerciseCount',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                          height: 1,
-                        ),
-                      ),
-                    ),
-                  ),
+                  _exerciseBadge(),
               ],
             ),
           ),
@@ -755,6 +799,44 @@ class _DayCell extends StatelessWidget {
     );
 
     return cell;
+  }
+
+  /// Custom-exercise badge: solid blue circle with the count while any remain;
+  /// a hollow blue ring once every scheduled exercise for the date is done.
+  Widget _exerciseBadge() {
+    final allDone = exerciseDoneCount >= exerciseCount;
+    if (allDone) {
+      // Blank circle (completed)
+      return Container(
+        width: 15,
+        height: 15,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.transparent,
+          border: Border.all(color: _exerciseBadgeColor, width: 1.5),
+        ),
+      );
+    }
+    // Solid circle with remaining/total count
+    return Container(
+      constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
+      padding: const EdgeInsets.all(1.5),
+      decoration: const BoxDecoration(
+        color: _exerciseBadgeColor,
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text(
+          '$exerciseCount',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 9,
+            fontWeight: FontWeight.bold,
+            height: 1,
+          ),
+        ),
+      ),
+    );
   }
 }
 
