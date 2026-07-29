@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -43,6 +44,13 @@ const _ambients = [
     color: Color(0xFF00695C),
   ),
   _Ambient(
+    type: AmbientType.piano,
+    icon: '🎹',
+    title: '鋼琴',
+    subtitle: '簡約旋律・輕鬆伴跑',
+    color: Color(0xFF5D4037),
+  ),
+  _Ambient(
     type: AmbientType.white,
     icon: '⚪',
     title: '白噪音',
@@ -74,10 +82,11 @@ class AmbientPlayer extends StatefulWidget {
 
 class _AmbientPlayerState extends State<AmbientPlayer> {
   final _player = AudioPlayer();
-  int? _activeIdx;      // currently selected sound
-  int? _loadingIdx;     // sound being synthesized/loaded
+  int? _activeIdx; // currently selected sound
+  int? _loadingIdx; // sound being synthesized/loaded
   bool _playing = false;
   double _volume = 0.7;
+  int _requestId = 0;
 
   @override
   void initState() {
@@ -94,9 +103,22 @@ class _AmbientPlayerState extends State<AmbientPlayer> {
 
   /// Synthesize (once) → cache → return a looping file source.
   Future<AudioSource> _sourceFor(_Ambient a) async {
+    if (a.type == AmbientType.piano) {
+      return AudioSource.asset('assets/audio/simple_piano_loop.m4a');
+    }
+    if (a.type == AmbientType.rain) {
+      return AudioSource.asset('assets/audio/gentle_rain_loop.m4a');
+    }
+    if (a.type == AmbientType.ocean) {
+      return AudioSource.asset('assets/audio/ocean_waves_loop.m4a');
+    }
+    if (a.type == AmbientType.wind) {
+      return AudioSource.asset('assets/audio/wind_through_leaves_v3.m4a');
+    }
+
     final dir = await getApplicationCacheDirectory();
     // Version suffix busts the cache when the synthesis changes.
-    final file = File('${dir.path}/ambient_${a.type.name}_v3.wav');
+    final file = File('${dir.path}/ambient_${a.type.name}_v4.wav');
     if (!await file.exists()) {
       // Generate off the UI thread — ~0.5M samples of DSP.
       final bytes = await compute(buildAmbientWav, a.type.index);
@@ -106,43 +128,64 @@ class _AmbientPlayerState extends State<AmbientPlayer> {
   }
 
   Future<void> _select(int idx) async {
+    final requestId = ++_requestId;
+
     // Tapping the active sound toggles play/pause.
     if (_activeIdx == idx) {
       if (_playing) {
         await _player.pause();
-        setState(() => _playing = false);
+        if (mounted && requestId == _requestId) {
+          setState(() => _playing = false);
+        }
       } else {
-        await _player.play();
-        setState(() => _playing = true);
+        if (mounted) setState(() => _playing = true);
+        unawaited(_player.play());
       }
       return;
     }
 
-    setState(() => _loadingIdx = idx);
+    // Select immediately so the control row (volume/stop) and the card's
+    // active/loading state appear on the very first tap, not only once the
+    // async source load finishes.
+    setState(() {
+      _activeIdx = idx;
+      _loadingIdx = idx;
+      _playing = false;
+    });
     try {
       final source = await _sourceFor(_ambients[idx]);
+      if (!mounted || requestId != _requestId) return;
       await _player.setAudioSource(source);
       await _player.setLoopMode(LoopMode.one);
-      await _player.play();
-      if (mounted) {
-        setState(() {
-          _activeIdx = idx;
-          _playing = true;
-          _loadingIdx = null;
-        });
-      }
+      if (!mounted || requestId != _requestId) return;
+      setState(() {
+        _activeIdx = idx;
+        _playing = true;
+        _loadingIdx = null;
+      });
+      unawaited(_player.play());
     } catch (e) {
       debugPrint('Ambient audio error: $e');
-      if (mounted) setState(() => _loadingIdx = null);
+      if (mounted && requestId == _requestId) {
+        setState(() {
+          _activeIdx = null;
+          _loadingIdx = null;
+          _playing = false;
+        });
+      }
     }
   }
 
   Future<void> _stop() async {
+    _requestId++;
     await _player.stop();
-    setState(() {
-      _playing = false;
-      _activeIdx = null;
-    });
+    if (mounted) {
+      setState(() {
+        _playing = false;
+        _activeIdx = null;
+        _loadingIdx = null;
+      });
+    }
   }
 
   @override
@@ -174,7 +217,8 @@ class _AmbientPlayerState extends State<AmbientPlayer> {
               Expanded(
                 child: Slider(
                   value: _volume,
-                  min: 0, max: 1,
+                  min: 0,
+                  max: 1,
                   activeColor: const Color(0xFF2E7D32),
                   onChanged: (v) {
                     setState(() => _volume = v);

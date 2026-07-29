@@ -22,11 +22,11 @@ class _Tone {
 }
 
 const _tones = [
-  _Tone(emoji: '🔔', label: '清脆',  type: _SoundType.simple),
-  _Tone(emoji: '🎵', label: '中音',  type: _SoundType.deepBass),
-  _Tone(emoji: '🥁', label: '大鼓',  type: _SoundType.kickDrum),
-  _Tone(emoji: '🪘', label: '低拍',  type: _SoundType.deepBeat),
-  _Tone(emoji: '🎸', label: '木魚',  type: _SoundType.woodBlock),
+  _Tone(emoji: '🔔', label: '清脆', type: _SoundType.simple),
+  _Tone(emoji: '🎵', label: '中音', type: _SoundType.deepBass),
+  _Tone(emoji: '🥁', label: '大鼓', type: _SoundType.kickDrum),
+  _Tone(emoji: '🪘', label: '低拍', type: _SoundType.deepBeat),
+  _Tone(emoji: '🎸', label: '木魚', type: _SoundType.woodBlock),
 ];
 
 // ── File source helper ────────────────────────────────────────────────────────
@@ -74,8 +74,12 @@ class _MetronomeWidgetState extends State<MetronomeWidget>
   Future<void> _loadTone(int idx) async {
     setState(() => _audioReady = false);
     try {
-      final bytes = _generateTone(_tones[idx].type);
-      final source = await _wavToFileSource(bytes, 'tone_$idx');
+      final source = _tones[idx].type == _SoundType.kickDrum
+          ? AudioSource.asset('assets/audio/big_kick_metronome.wav')
+          : await _wavToFileSource(
+              _generateTone(_tones[idx].type),
+              'tone_$idx',
+            );
       await _player.setAudioSource(source);
       if (mounted) setState(() => _audioReady = true);
     } catch (e) {
@@ -87,86 +91,112 @@ class _MetronomeWidgetState extends State<MetronomeWidget>
 
   double get _n => _rng.nextDouble() * 2 - 1; // white noise sample
 
+  double _softSaturate(double value) {
+    final x = value.clamp(-10.0, 10.0);
+    final e = exp(2 * x);
+    return (e - 1) / (e + 1);
+  }
+
   Uint8List _generateTone(_SoundType type) {
     switch (type) {
       case _SoundType.simple:
-        return _buildWav(durationMs: 60, generator: (t, _) {
-          return sin(2 * pi * 880 * t) * exp(-t * 55);
-        });
+        return _buildWav(
+            durationMs: 60,
+            generator: (t, _) {
+              return sin(2 * pi * 880 * t) * exp(-t * 55);
+            });
 
       case _SoundType.kickDrum:
-        // ── Realistic kick drum ─────────────────────────────────────
-        // Layer 1: pitch sweep 280 Hz → 40 Hz (fast, in first 70 ms)
-        // Layer 2: white noise burst at attack (THE key ingredient)
-        // Layer 3: sub bass 50 Hz, slow decay
-        // Layer 4: beater click 1200 Hz, ultra-fast decay
-        return _buildWav(durationMs: 340, generator: (t, _) {
-          // Fast pitch sweep — most of the drop happens in first 70ms
-          final sweepT    = (t / 0.07).clamp(0.0, 1.0);
-          final bodyFreq  = 280.0 * pow(40.0 / 280.0, sweepT);
-          final bodyEnv   = exp(-t * 11);
-          final body      = sin(2 * pi * bodyFreq * t) * bodyEnv * 0.9;
+        // Phase integration keeps the downward pitch sweep coherent. The
+        // 75–90 Hz punch remains audible on phone speakers while the 46 Hz
+        // layer supplies physical depth on headphones and larger speakers.
+        double bodyPhase = 0;
+        double noiseLowPass = 0;
+        const sampleRate = 44100.0;
+        return _buildWav(
+            durationMs: 300,
+            generator: (t, progress) {
+              final sweep = (t / 0.095).clamp(0.0, 1.0);
+              final frequency = 175.0 * pow(58.0 / 175.0, sweep);
+              bodyPhase += 2 * pi * frequency / sampleRate;
 
-          // White noise burst — gives the physical "thud" and punch
-          final noiseEnv  = exp(-t * 180);
-          final noise     = _n * noiseEnv * 0.7;
+              // Rounded attack followed by a long, heavy drum-shell decay.
+              final attack = 1 - exp(-t * 420);
+              final release = progress < 0.82 ? 1.0 : (1 - progress) / 0.18;
+              final bodyEnvelope = attack * exp(-t * 8.0) * release;
+              final body = sin(bodyPhase) * bodyEnvelope * 1.05;
 
-          // Sub bass — perceived depth on speakers/headphones
-          final subEnv    = exp(-t * 7);
-          final sub       = sin(2 * pi * 50 * t) * subEnv * 0.5;
+              // Mid-bass punch translates the kick on small mobile speakers.
+              final punchEnvelope = (1 - exp(-t * 300)) * exp(-t * 11);
+              final punch = sin(2 * pi * 82 * t) * punchEnvelope * 0.72;
+              final harmonic =
+                  sin(2 * pi * 145 * t) * exp(-t * 18) * release * 0.22;
 
-          // Beater click — sharp transient attack
-          final clickEnv  = exp(-t * 280);
-          final click     = sin(2 * pi * 1200 * t) * clickEnv * 0.35;
+              // Sub-bass tail adds weight without masking the initial strike.
+              final subEnvelope = (1 - exp(-t * 180)) * exp(-t * 6.5) * release;
+              final sub = sin(2 * pi * 46 * t) * subEnvelope * 0.62;
 
-          return (body + noise + sub + click).clamp(-1.0, 1.0);
-        });
+              // Short low-passed impact noise sounds like a felt beater, not a click.
+              noiseLowPass += 0.16 * (_n - noiseLowPass);
+              final impact = noiseLowPass * exp(-t * 95) * 0.48;
+
+              // Soft saturation increases perceived strength without digital clips.
+              final mixed = body + punch + harmonic + sub + impact;
+              return (_softSaturate(mixed * 1.35) / _softSaturate(1.35))
+                  .clamp(-1.0, 1.0);
+            });
 
       case _SoundType.deepBeat:
         // ── Floor tom / deep beat ───────────────────────────────────
         // Slower pitch sweep + noise + longer body
-        return _buildWav(durationMs: 300, generator: (t, _) {
-          final sweepT   = (t / 0.12).clamp(0.0, 1.0);
-          final bodyFreq = 160.0 * pow(65.0 / 160.0, sweepT);
-          final bodyEnv  = exp(-t * 9);
-          final body     = sin(2 * pi * bodyFreq * t) * bodyEnv;
+        return _buildWav(
+            durationMs: 300,
+            generator: (t, _) {
+              final sweepT = (t / 0.12).clamp(0.0, 1.0);
+              final bodyFreq = 160.0 * pow(65.0 / 160.0, sweepT);
+              final bodyEnv = exp(-t * 9);
+              final body = sin(2 * pi * bodyFreq * t) * bodyEnv;
 
-          // Moderate noise — softer than kick
-          final noiseEnv = exp(-t * 120);
-          final noise    = _n * noiseEnv * 0.4;
+              // Moderate noise — softer than kick
+              final noiseEnv = exp(-t * 120);
+              final noise = _n * noiseEnv * 0.4;
 
-          // Warm harmonic
-          final harmEnv  = exp(-t * 14);
-          final harm     = sin(2 * pi * bodyFreq * 2 * t) * harmEnv * 0.25;
+              // Warm harmonic
+              final harmEnv = exp(-t * 14);
+              final harm = sin(2 * pi * bodyFreq * 2 * t) * harmEnv * 0.25;
 
-          // Sub
-          final subEnv   = exp(-t * 10);
-          final sub      = sin(2 * pi * 60 * t) * subEnv * 0.3;
+              // Sub
+              final subEnv = exp(-t * 10);
+              final sub = sin(2 * pi * 60 * t) * subEnv * 0.3;
 
-          return (body + noise + harm + sub).clamp(-1.0, 1.0);
-        });
+              return (body + noise + harm + sub).clamp(-1.0, 1.0);
+            });
 
       case _SoundType.woodBlock:
         // ── Wood block — short, dry, mid-high ──────────────────────
-        return _buildWav(durationMs: 85, generator: (t, _) {
-          final env  = exp(-t * 70);
-          final env2 = exp(-t * 100);
-          final a    = sin(2 * pi * 620 * t) * env;
-          final b    = sin(2 * pi * 950 * t) * env2 * 0.4;
-          // Tiny noise snap
-          final snap = _n * exp(-t * 500) * 0.2;
-          return (a + b + snap).clamp(-1.0, 1.0);
-        });
+        return _buildWav(
+            durationMs: 85,
+            generator: (t, _) {
+              final env = exp(-t * 70);
+              final env2 = exp(-t * 100);
+              final a = sin(2 * pi * 620 * t) * env;
+              final b = sin(2 * pi * 950 * t) * env2 * 0.4;
+              // Tiny noise snap
+              final snap = _n * exp(-t * 500) * 0.2;
+              return (a + b + snap).clamp(-1.0, 1.0);
+            });
 
       case _SoundType.deepBass:
         // ── Deep warm bell tone ────────────────────────────────────
-        return _buildWav(durationMs: 120, generator: (t, _) {
-          final env = exp(-t * 28);
-          final a   = sin(2 * pi * 440 * t) * env;
-          final b   = sin(2 * pi * 880 * t) * env * 0.3;
-          final c   = sin(2 * pi * 220 * t) * env * 0.2;
-          return (a + b + c).clamp(-1.0, 1.0);
-        });
+        return _buildWav(
+            durationMs: 120,
+            generator: (t, _) {
+              final env = exp(-t * 28);
+              final a = sin(2 * pi * 440 * t) * env;
+              final b = sin(2 * pi * 880 * t) * env * 0.3;
+              final c = sin(2 * pi * 220 * t) * env * 0.2;
+              return (a + b + c).clamp(-1.0, 1.0);
+            });
     }
   }
 
@@ -177,7 +207,7 @@ class _MetronomeWidgetState extends State<MetronomeWidget>
     required double Function(double t, double progress) generator,
     int sampleRate = 44100,
   }) {
-    final n   = (sampleRate * durationMs / 1000).round();
+    final n = (sampleRate * durationMs / 1000).round();
     final buf = ByteData(44 + n * 2);
 
     void str(int offset, String s) {
@@ -201,10 +231,10 @@ class _MetronomeWidgetState extends State<MetronomeWidget>
     buf.setUint32(40, n * 2, Endian.little);
 
     for (var i = 0; i < n; i++) {
-      final t        = i / sampleRate;
+      final t = i / sampleRate;
       final progress = i / n;
-      final sample   = generator(t, progress);
-      final v        = (sample * 30000).round().clamp(-32768, 32767);
+      final sample = generator(t, progress);
+      final v = (sample * 30000).round().clamp(-32768, 32767);
       buf.setInt16(44 + i * 2, v, Endian.little);
     }
     return buf.buffer.asUint8List();
@@ -233,14 +263,18 @@ class _MetronomeWidgetState extends State<MetronomeWidget>
     if (mounted) {
       setState(() => _beat = true);
       _pulseCtrl.forward(from: 0);
-      Future.delayed(const Duration(milliseconds: 90),
-          () { if (mounted) setState(() => _beat = false); });
+      Future.delayed(const Duration(milliseconds: 90), () {
+        if (mounted) setState(() => _beat = false);
+      });
     }
   }
 
   void _onBpmChanged(double v) {
     setState(() => _bpm = v);
-    if (_running) { _stop(); _start(); }
+    if (_running) {
+      _stop();
+      _start();
+    }
   }
 
   Future<void> _onToneChanged(int idx) async {
@@ -265,7 +299,7 @@ class _MetronomeWidgetState extends State<MetronomeWidget>
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final bpmInt = _bpm.round();
-    final tone   = _tones[_toneIdx];
+    final tone = _tones[_toneIdx];
 
     return Card(
       child: Padding(
@@ -278,18 +312,22 @@ class _MetronomeWidgetState extends State<MetronomeWidget>
               builder: (_, __) => Transform.scale(
                 scale: 1.0 + _pulseCtrl.value * 0.22,
                 child: Container(
-                  width: 90, height: 90,
+                  width: 90,
+                  height: 90,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: _running
                         ? (_beat
                             ? const Color(0xFF4CAF50)
                             : const Color(0xFF4CAF50).withAlpha(60))
-                        : scheme.surfaceVariant,
+                        : scheme.surfaceContainerHighest,
                     boxShadow: _beat
-                        ? [BoxShadow(
-                            color: const Color(0xFF4CAF50).withAlpha(140),
-                            blurRadius: 24, spreadRadius: 6)]
+                        ? [
+                            BoxShadow(
+                                color: const Color(0xFF4CAF50).withAlpha(140),
+                                blurRadius: 24,
+                                spreadRadius: 6)
+                          ]
                         : [],
                   ),
                   child: Center(
@@ -310,7 +348,8 @@ class _MetronomeWidgetState extends State<MetronomeWidget>
                             ],
                           )
                         : const SizedBox(
-                            width: 24, height: 24,
+                            width: 24,
+                            height: 24,
                             child: CircularProgressIndicator(strokeWidth: 2)),
                   ),
                 ),
@@ -319,12 +358,13 @@ class _MetronomeWidgetState extends State<MetronomeWidget>
             const SizedBox(height: 16),
 
             // Tone selector
-            const Text('音色', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const Text('音色',
+                style: TextStyle(fontSize: 12, color: Colors.grey)),
             const SizedBox(height: 6),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(_tones.length, (i) {
-                final t      = _tones[i];
+                final t = _tones[i];
                 final active = _toneIdx == i;
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -337,18 +377,16 @@ class _MetronomeWidgetState extends State<MetronomeWidget>
                       decoration: BoxDecoration(
                         color: active
                             ? const Color(0xFF4CAF50)
-                            : scheme.surfaceVariant,
+                            : scheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(12),
                         border: active
                             ? null
-                            : Border.all(
-                                color: scheme.outline.withAlpha(60)),
+                            : Border.all(color: scheme.outline.withAlpha(60)),
                       ),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(t.emoji,
-                              style: const TextStyle(fontSize: 18)),
+                          Text(t.emoji, style: const TextStyle(fontSize: 18)),
                           const SizedBox(height: 2),
                           Text(t.label,
                               style: TextStyle(
@@ -375,7 +413,9 @@ class _MetronomeWidgetState extends State<MetronomeWidget>
                 Expanded(
                   child: Slider(
                     value: _bpm,
-                    min: 150, max: 200, divisions: 50,
+                    min: 150,
+                    max: 200,
+                    divisions: 50,
                     activeColor: const Color(0xFF4CAF50),
                     label: '$bpmInt BPM',
                     onChanged: _onBpmChanged,
@@ -402,16 +442,15 @@ class _MetronomeWidgetState extends State<MetronomeWidget>
                       decoration: BoxDecoration(
                         color: active
                             ? const Color(0xFF4CAF50)
-                            : scheme.surfaceVariant,
+                            : scheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text('$bpm',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: active
-                                ? Colors.white
-                                : scheme.onSurfaceVariant,
+                            color:
+                                active ? Colors.white : scheme.onSurfaceVariant,
                           )),
                     ),
                   ),
@@ -423,9 +462,7 @@ class _MetronomeWidgetState extends State<MetronomeWidget>
               bpmInt == 180 ? '✓ 標準超慢跑步頻' : '超慢跑建議 180 BPM',
               style: TextStyle(
                 fontSize: 12,
-                color: bpmInt == 180
-                    ? const Color(0xFF4CAF50)
-                    : Colors.grey,
+                color: bpmInt == 180 ? const Color(0xFF4CAF50) : Colors.grey,
               ),
             ),
             const SizedBox(height: 14),
@@ -447,9 +484,7 @@ class _MetronomeWidgetState extends State<MetronomeWidget>
                   : FilledButton.icon(
                       onPressed: _audioReady ? _start : null,
                       icon: const Icon(Icons.play_arrow),
-                      label: Text(_audioReady
-                          ? '開始節拍  $bpmInt BPM'
-                          : '音色載入中…'),
+                      label: Text(_audioReady ? '開始節拍  $bpmInt BPM' : '音色載入中…'),
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFF4CAF50),
                         padding: const EdgeInsets.symmetric(vertical: 12),

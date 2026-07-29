@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../models/training_plan.dart';
 
 /// Syncs training plan data to Firestore.
@@ -8,37 +7,35 @@ import '../models/training_plan.dart';
 ///   users/{uid}/plan/config          — WeeklyPlanConfig document
 ///   users/{uid}/completed_days/{key} — one doc per completed day
 ///
-/// All methods silently no-op when the user is not signed in.
+/// The caller supplies the authenticated UID so an account change during an
+/// asynchronous operation cannot redirect data to another member.
 class FirebaseSyncService {
   FirebaseSyncService._();
   static final FirebaseSyncService instance = FirebaseSyncService._();
 
   FirebaseFirestore get _db => FirebaseFirestore.instance;
 
-  String? get _uid => FirebaseAuth.instance.currentUser?.uid;
-
   DocumentReference _configDoc(String uid) =>
       _db.collection('users').doc(uid).collection('plan').doc('config');
 
-  DocumentReference _completedDoc(String uid, String dateKey) =>
-      _db.collection('users').doc(uid).collection('completed_days').doc(dateKey);
+  DocumentReference _completedDoc(String uid, String dateKey) => _db
+      .collection('users')
+      .doc(uid)
+      .collection('completed_days')
+      .doc(dateKey);
 
   CollectionReference _completedCol(String uid) =>
       _db.collection('users').doc(uid).collection('completed_days');
 
   // ── Config ─────────────────────────────────────────────────────────────────
 
-  Future<void> syncConfig(WeeklyPlanConfig config) async {
-    final uid = _uid;
-    if (uid == null) return;
+  Future<void> syncConfig(String uid, WeeklyPlanConfig config) async {
     try {
       await _configDoc(uid).set(config.toJson());
     } catch (_) {}
   }
 
-  Future<WeeklyPlanConfig?> fetchConfig() async {
-    final uid = _uid;
-    if (uid == null) return null;
+  Future<WeeklyPlanConfig?> fetchConfig(String uid) async {
     try {
       final snap = await _configDoc(uid).get();
       if (!snap.exists) return null;
@@ -50,9 +47,8 @@ class FirebaseSyncService {
 
   // ── Completed days ─────────────────────────────────────────────────────────
 
-  Future<void> setCompletedDay(DateTime date, PlanActivity activity) async {
-    final uid = _uid;
-    if (uid == null) return;
+  Future<void> setCompletedDay(
+      String uid, DateTime date, PlanActivity activity) async {
     try {
       final key = CompletedDay.keyFor(date);
       await _completedDoc(uid, key)
@@ -60,17 +56,13 @@ class FirebaseSyncService {
     } catch (_) {}
   }
 
-  Future<void> deleteCompletedDay(DateTime date) async {
-    final uid = _uid;
-    if (uid == null) return;
+  Future<void> deleteCompletedDay(String uid, DateTime date) async {
     try {
       await _completedDoc(uid, CompletedDay.keyFor(date)).delete();
     } catch (_) {}
   }
 
-  Future<Map<String, CompletedDay>> fetchCompleted() async {
-    final uid = _uid;
-    if (uid == null) return {};
+  Future<Map<String, CompletedDay>> fetchCompleted(String uid) async {
     try {
       final snap = await _completedCol(uid).get();
       return {
@@ -90,18 +82,15 @@ class FirebaseSyncService {
       .collection('plan')
       .doc('exercise_schedule');
 
-  Future<void> syncExerciseSchedule(Map<int, List<String>> schedule) async {
-    final uid = _uid;
-    if (uid == null) return;
+  Future<void> syncExerciseSchedule(
+      String uid, Map<int, List<String>> schedule) async {
     try {
-      await _exerciseScheduleDoc(uid).set(
-          {for (final e in schedule.entries) '${e.key}': e.value});
+      await _exerciseScheduleDoc(uid)
+          .set({for (final e in schedule.entries) '${e.key}': e.value});
     } catch (_) {}
   }
 
-  Future<Map<int, List<String>>> fetchExerciseSchedule() async {
-    final uid = _uid;
-    if (uid == null) return {};
+  Future<Map<int, List<String>>> fetchExerciseSchedule(String uid) async {
     try {
       final snap = await _exerciseScheduleDoc(uid).get();
       if (!snap.exists) return {};
@@ -123,18 +112,15 @@ class FirebaseSyncService {
       .collection('plan')
       .doc('completed_exercises');
 
-  Future<void> syncCompletedExercises(Map<String, Set<String>> data) async {
-    final uid = _uid;
-    if (uid == null) return;
+  Future<void> syncCompletedExercises(
+      String uid, Map<String, Set<String>> data) async {
     try {
       await _completedExercisesDoc(uid)
           .set({for (final e in data.entries) e.key: e.value.toList()});
     } catch (_) {}
   }
 
-  Future<Map<String, Set<String>>> fetchCompletedExercises() async {
-    final uid = _uid;
-    if (uid == null) return {};
+  Future<Map<String, Set<String>>> fetchCompletedExercises(String uid) async {
     try {
       final snap = await _completedExercisesDoc(uid).get();
       if (!snap.exists) return {};

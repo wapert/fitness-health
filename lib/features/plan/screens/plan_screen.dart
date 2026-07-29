@@ -28,9 +28,10 @@ class _PlanScreenState extends State<PlanScreen> {
   );
 
   Map<String, CompletedDay> _completed = {};
-  Map<int, PlanActivity> _editableTemplate = {};  // user-edited week template
-  Map<int, List<String>> _exerciseSchedule = {};  // weekday → exerciseIds
-  Map<String, Set<String>> _completedExercises = {}; // dateKey → done exerciseIds
+  Map<int, PlanActivity> _editableTemplate = {}; // user-edited week template
+  Map<int, List<String>> _exerciseSchedule = {}; // weekday → exerciseIds
+  Map<String, Set<String>> _completedExercises =
+      {}; // dateKey → done exerciseIds
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
   bool _loaded = false;
@@ -43,10 +44,11 @@ class _PlanScreenState extends State<PlanScreen> {
   }
 
   Future<void> _load() async {
-    final cfg  = await _service.loadConfig();
+    final cfg = await _service.loadConfig();
     final done = await _service.loadCompleted();
     final sched = await _scheduleService.load();
     final exDone = await _scheduleService.loadCompletedExercises();
+    if (!mounted) return;
     setState(() {
       if (cfg != null) _config = cfg;
       _editableTemplate = (cfg ?? _config).effectiveTemplate;
@@ -102,8 +104,7 @@ class _PlanScreenState extends State<PlanScreen> {
 
   // ── Event helpers ────────────────────────────────────────────────────────
 
-  PlanActivity? _activityFor(DateTime day) =>
-      _editableTemplate[day.weekday];
+  PlanActivity? _activityFor(DateTime day) => _editableTemplate[day.weekday];
 
   List<PlanActivity> _eventsForDay(DateTime day) {
     final a = _activityFor(day);
@@ -167,7 +168,9 @@ class _PlanScreenState extends State<PlanScreen> {
           final dayExercises = _exercisesForWeekday(day.weekday);
           return Padding(
             padding: EdgeInsets.only(
-              left: 24, right: 24, top: 16,
+              left: 24,
+              right: 24,
+              top: 16,
               bottom: MediaQuery.of(context).viewInsets.bottom + 20,
             ),
             child: SingleChildScrollView(
@@ -177,7 +180,8 @@ class _PlanScreenState extends State<PlanScreen> {
                 children: [
                   Center(
                     child: Container(
-                        width: 40, height: 4,
+                        width: 40,
+                        height: 4,
                         decoration: BoxDecoration(
                             color: Colors.grey.withAlpha(80),
                             borderRadius: BorderRadius.circular(2))),
@@ -186,7 +190,8 @@ class _PlanScreenState extends State<PlanScreen> {
                   Row(
                     children: [
                       Container(
-                        width: 52, height: 52,
+                        width: 52,
+                        height: 52,
                         decoration: BoxDecoration(
                           color: color.withAlpha(40),
                           borderRadius: BorderRadius.circular(14),
@@ -270,9 +275,8 @@ class _PlanScreenState extends State<PlanScreen> {
                             e.nameChinese,
                             style: TextStyle(
                               fontSize: 14,
-                              decoration: exDone
-                                  ? TextDecoration.lineThrough
-                                  : null,
+                              decoration:
+                                  exDone ? TextDecoration.lineThrough : null,
                               color: exDone ? Colors.grey : null,
                             ),
                           ),
@@ -315,8 +319,7 @@ class _PlanScreenState extends State<PlanScreen> {
                             label: const Text('標記為完成 ✓'),
                             style: FilledButton.styleFrom(
                               backgroundColor: color,
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 14),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
                             ),
                           ),
                   ],
@@ -331,7 +334,7 @@ class _PlanScreenState extends State<PlanScreen> {
   }
 
   String _dateLabel(DateTime d) {
-    const weekdays = ['一','二','三','四','五','六','日'];
+    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
     return '${d.month} 月 ${d.day} 日（週${weekdays[d.weekday - 1]}）';
   }
 
@@ -385,7 +388,8 @@ class _PlanScreenState extends State<PlanScreen> {
                     activity: PlanActivity.training,
                     count: _config.trainingDays,
                     onChanged: (v) => setState(() {
-                      _config = _config.copyWith(trainingDays: v, customTemplate: null);
+                      _config = _config.copyWith(
+                          trainingDays: v, customTemplate: null);
                       _editableTemplate = _config.weekTemplate;
                     }),
                   ),
@@ -394,7 +398,8 @@ class _PlanScreenState extends State<PlanScreen> {
                     activity: PlanActivity.stretching,
                     count: _config.stretchingDays,
                     onChanged: (v) => setState(() {
-                      _config = _config.copyWith(stretchingDays: v, customTemplate: null);
+                      _config = _config.copyWith(
+                          stretchingDays: v, customTemplate: null);
                       _editableTemplate = _config.weekTemplate;
                     }),
                   ),
@@ -403,7 +408,8 @@ class _PlanScreenState extends State<PlanScreen> {
                     activity: PlanActivity.jogging,
                     count: _config.joggingDays,
                     onChanged: (v) => setState(() {
-                      _config = _config.copyWith(joggingDays: v, customTemplate: null);
+                      _config = _config.copyWith(
+                          joggingDays: v, customTemplate: null);
                       _editableTemplate = _config.weekTemplate;
                     }),
                   ),
@@ -412,7 +418,8 @@ class _PlanScreenState extends State<PlanScreen> {
                     activity: PlanActivity.fasting,
                     count: _config.fastingDays,
                     onChanged: (v) => setState(() {
-                      _config = _config.copyWith(fastingDays: v, customTemplate: null);
+                      _config = _config.copyWith(
+                          fastingDays: v, customTemplate: null);
                       _editableTemplate = _config.weekTemplate;
                     }),
                   ),
@@ -448,16 +455,17 @@ class _PlanScreenState extends State<PlanScreen> {
           const SizedBox(height: 20),
           // Summary chips
           Wrap(
-            spacing: 8, runSpacing: 8,
+            spacing: 8,
+            runSpacing: 8,
             children: PlanActivity.values
                 .where((a) => a != PlanActivity.rest)
                 .map((a) {
               final count = switch (a) {
-                PlanActivity.training   => _config.trainingDays,
+                PlanActivity.training => _config.trainingDays,
                 PlanActivity.stretching => _config.stretchingDays,
-                PlanActivity.jogging    => _config.joggingDays,
-                PlanActivity.fasting    => _config.fastingDays,
-                _                       => 0,
+                PlanActivity.jogging => _config.joggingDays,
+                PlanActivity.fasting => _config.fastingDays,
+                _ => 0,
               };
               if (count == 0) return const SizedBox.shrink();
               return Chip(
@@ -490,9 +498,9 @@ class _PlanScreenState extends State<PlanScreen> {
 
   Widget _buildCalendar() {
     final template = _editableTemplate;
-    final scheme   = Theme.of(context).colorScheme;
+    final scheme = Theme.of(context).colorScheme;
     final thisWeekTotal = _config.totalActiveDays;
-    final thisWeekDone  = _completedThisWeek;
+    final thisWeekDone = _completedThisWeek;
 
     return Column(
       children: [
@@ -511,22 +519,18 @@ class _PlanScreenState extends State<PlanScreen> {
                 children: [
                   Text('本週進度',
                       style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: scheme.primary)),
+                          fontWeight: FontWeight.bold, color: scheme.primary)),
                   const Spacer(),
                   Text('$thisWeekDone / $thisWeekTotal',
                       style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: scheme.primary)),
+                          fontWeight: FontWeight.bold, color: scheme.primary)),
                 ],
               ),
               const SizedBox(height: 8),
               ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
-                  value: thisWeekTotal == 0
-                      ? 0
-                      : thisWeekDone / thisWeekTotal,
+                  value: thisWeekTotal == 0 ? 0 : thisWeekDone / thisWeekTotal,
                   minHeight: 8,
                   backgroundColor: scheme.surfaceContainerHighest,
                   color: thisWeekDone >= thisWeekTotal
@@ -566,7 +570,8 @@ class _PlanScreenState extends State<PlanScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Container(
-                            width: 12, height: 12,
+                            width: 12,
+                            height: 12,
                             decoration: BoxDecoration(
                               color: Color(a.colorValue),
                               borderRadius: BorderRadius.circular(3),
@@ -583,7 +588,8 @@ class _PlanScreenState extends State<PlanScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: 14, height: 14,
+                    width: 14,
+                    height: 14,
                     decoration: const BoxDecoration(
                       color: _exerciseBadgeColor,
                       shape: BoxShape.circle,
@@ -614,7 +620,7 @@ class _PlanScreenState extends State<PlanScreen> {
               firstDay: DateTime.utc(2025, 1, 1),
               lastDay: DateTime.utc(2027, 12, 31),
               focusedDay: _focusedDay,
-              rowHeight: 48,            // compact rows so the month fits
+              rowHeight: 48, // compact rows so the month fits
               daysOfWeekHeight: 28,
               selectedDayPredicate: (d) =>
                   _selectedDay != null && isSameDay(_selectedDay!, d),
@@ -622,7 +628,7 @@ class _PlanScreenState extends State<PlanScreen> {
               onDaySelected: (selected, focused) {
                 setState(() {
                   _selectedDay = selected;
-                  _focusedDay  = focused;
+                  _focusedDay = focused;
                 });
                 _showDayDetail(selected);
               },
@@ -631,39 +637,46 @@ class _PlanScreenState extends State<PlanScreen> {
               headerStyle: const HeaderStyle(
                 formatButtonVisible: false,
                 titleCentered: true,
-                titleTextStyle: TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 16),
+                titleTextStyle:
+                    TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               calendarStyle: const CalendarStyle(
                 // disable default decorations — our builder handles everything
-                todayDecoration:    BoxDecoration(),
+                todayDecoration: BoxDecoration(),
                 selectedDecoration: BoxDecoration(),
-                defaultDecoration:  BoxDecoration(),
-                weekendDecoration:  BoxDecoration(),
-                outsideDecoration:  BoxDecoration(),
+                defaultDecoration: BoxDecoration(),
+                weekendDecoration: BoxDecoration(),
+                outsideDecoration: BoxDecoration(),
                 markersMaxCount: 0,
               ),
 
               calendarBuilders: CalendarBuilders(
                 markerBuilder: (_, __, ___) => const SizedBox.shrink(),
                 defaultBuilder: (_, date, __) => _DayCell(
-                  date: date, activity: _activityFor(date),
-                  done: _isDone(date), isToday: false,
-                  isSelected: _selectedDay != null && isSameDay(_selectedDay!, date),
+                  date: date,
+                  activity: _activityFor(date),
+                  done: _isDone(date),
+                  isToday: false,
+                  isSelected:
+                      _selectedDay != null && isSameDay(_selectedDay!, date),
                   isOutside: false,
                   exerciseCount: _exerciseCountFor(date),
                   exerciseDoneCount: _exerciseDoneCountFor(date),
                 ),
                 todayBuilder: (_, date, __) => _DayCell(
-                  date: date, activity: _activityFor(date),
-                  done: _isDone(date), isToday: true,
-                  isSelected: _selectedDay != null && isSameDay(_selectedDay!, date),
+                  date: date,
+                  activity: _activityFor(date),
+                  done: _isDone(date),
+                  isToday: true,
+                  isSelected:
+                      _selectedDay != null && isSameDay(_selectedDay!, date),
                   isOutside: false,
                   exerciseCount: _exerciseCountFor(date),
                   exerciseDoneCount: _exerciseDoneCountFor(date),
                 ),
                 selectedBuilder: (_, date, __) => _DayCell(
-                  date: date, activity: _activityFor(date),
+                  date: date,
+                  activity: _activityFor(date),
                   done: _isDone(date),
                   isToday: isSameDay(date, DateTime.now()),
                   isSelected: true,
@@ -672,10 +685,14 @@ class _PlanScreenState extends State<PlanScreen> {
                   exerciseDoneCount: _exerciseDoneCountFor(date),
                 ),
                 outsideBuilder: (_, date, __) => _DayCell(
-                  date: date, activity: null,
-                  done: false, isToday: false,
-                  isSelected: false, isOutside: true,
-                  exerciseCount: 0, exerciseDoneCount: 0,
+                  date: date,
+                  activity: null,
+                  done: false,
+                  isToday: false,
+                  isSelected: false,
+                  isOutside: true,
+                  exerciseCount: 0,
+                  exerciseDoneCount: 0,
                 ),
               ),
             ),
@@ -718,9 +735,9 @@ class _DayCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme   = Theme.of(context).colorScheme;
+    final scheme = Theme.of(context).colorScheme;
     final actColor = activity != null ? Color(activity!.colorValue) : null;
-    final hasAct   = activity != null;
+    final hasAct = activity != null;
 
     // Outer border for today / selected
     final border = isSelected
@@ -733,9 +750,7 @@ class _DayCell extends StatelessWidget {
       margin: const EdgeInsets.all(2),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        color: isSelected
-            ? (actColor ?? scheme.primary).withAlpha(30)
-            : null,
+        color: isSelected ? (actColor ?? scheme.primary).withAlpha(30) : null,
         border: border,
       ),
       child: Column(
@@ -780,8 +795,7 @@ class _DayCell extends StatelessWidget {
                   ),
                 if (hasAct && exerciseCount > 0 && !isOutside)
                   const SizedBox(width: 3),
-                if (exerciseCount > 0 && !isOutside)
-                  _exerciseBadge(),
+                if (exerciseCount > 0 && !isOutside) _exerciseBadge(),
               ],
             ),
           ),

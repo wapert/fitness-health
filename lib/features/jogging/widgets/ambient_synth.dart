@@ -12,7 +12,7 @@ import 'dart:typed_data';
 /// Noise sounds loop cleanly because a one-sample jump between random values is
 /// inaudible.
 
-enum AmbientType { white, pink, brown, rain, ocean, wind }
+enum AmbientType { white, pink, brown, rain, ocean, wind, piano }
 
 const int _sampleRate = 44100;
 const int _durationSec = 12;
@@ -68,16 +68,15 @@ Uint8List buildAmbientWav(int typeIndex) {
       double lpR = 0, lpM = 0, lpH = 0, drift = 0;
       for (var i = 0; i < n; i++) {
         final w = nextWhite();
-        lpR += 0.04 * (w - lpR);      // low rumble
-        lpM += 0.20 * (w - lpM);      // mid
+        lpR += 0.04 * (w - lpR); // low rumble
+        lpM += 0.20 * (w - lpM); // mid
         lpH += 0.55 * (w - lpH);
-        final body = lpM - lpR;       // band-pass → patter texture
-        final hiss = w - lpH;         // high-pass → hiss
+        final body = lpM - lpR; // band-pass → patter texture
+        final hiss = w - lpH; // high-pass → hiss
         drift += 0.0010 * (nextWhite() - drift);
         final amp = (0.85 + 0.35 * drift).clamp(0.5, 1.2);
-        samples[i] =
-            ((lpR * 0.5 + body * 0.9 + hiss * 0.30) * amp * 0.9)
-                .clamp(-1.0, 1.0);
+        samples[i] = ((lpR * 0.5 + body * 0.9 + hiss * 0.30) * amp * 0.9)
+            .clamp(-1.0, 1.0);
       }
       break;
 
@@ -97,30 +96,58 @@ Uint8List buildAmbientWav(int typeIndex) {
         final wave = 0.55 * waveEnv(t * 2) + 0.45 * waveEnv(t * 3 + 0.5);
         lpFoam += 0.5 * (w - lpFoam);
         final foam = (w - lpFoam) * max(0.0, wave - 0.55) * 1.6;
-        samples[i] =
-            (lp * 5.5 * wave + foam * 0.4).clamp(-1.0, 1.0) * 0.85;
+        samples[i] = (lp * 5.5 * wave + foam * 0.4).clamp(-1.0, 1.0) * 0.85;
       }
       break;
 
     case AmbientType.wind:
-      // Gusts open/close a low-pass filter (brighter during gusts) and swell
-      // the amplitude — the natural "whoosh". No tonal whistle (that reads as
-      // electronic); real wind is purely filtered noise.
-      double lp = 0;
+      // Layer several filtered-noise bands for soft moving air. The low band
+      // supplies the body, the mid band creates the passing "whoosh", and a
+      // restrained high band adds air without turning into white-noise hiss.
+      // Whole-cycle LFOs keep the 12-second buffer seamless when looped.
+      double low1 = 0, low2 = 0;
+      double mid1 = 0, mid2 = 0;
+      double airLp = 0;
+      double drift1 = 0, drift2 = 0;
       for (var i = 0; i < n; i++) {
-        final w = nextWhite();
+        final lowNoise = nextWhite();
+        final midNoise = nextWhite();
+        final airNoise = nextWhite();
         final t = i / n;
-        // Two overlapping gust cycles for a less repetitive feel.
-        final gust = 0.5 +
-            0.35 * sin(2 * pi * 2 * t) +
-            0.15 * sin(2 * pi * 5 * t + 1.0);
-        final swell = 0.6 + 0.4 * sin(2 * pi * 1 * t);
-        final cutoff = 0.015 + 0.055 * gust.clamp(0.0, 1.0); // opens on gusts
-        lp += cutoff * (w - lp);
+
+        // Slow irregular drift avoids the mechanical rise/fall of one sine.
+        drift1 += 0.00035 * (nextWhite() - drift1);
+        drift2 += 0.00012 * (nextWhite() - drift2);
+        final periodicGust = 0.14 * sin(2 * pi * 2 * t + 0.4) +
+            0.08 * sin(2 * pi * 3 * t + 2.1) +
+            0.05 * sin(2 * pi * 5 * t + 4.2);
+        final gust = (0.62 + periodicGust + drift1 * 2.2 + drift2 * 3.0)
+            .clamp(0.28, 1.0);
+
+        // Cascaded one-pole filters produce a broad, soft low-frequency body.
+        low1 += 0.010 * (lowNoise - low1);
+        low2 += 0.004 * (low1 - low2);
+
+        // A band of moving air that becomes slightly brighter during gusts.
+        final midCutoff = 0.025 + 0.035 * gust;
+        mid1 += midCutoff * (midNoise - mid1);
+        mid2 += 0.006 * (mid1 - mid2);
+        final whoosh = mid1 - mid2;
+
+        // Quiet high-frequency airflow, high-passed to remove harsh body.
+        airLp += 0.18 * (airNoise - airLp);
+        final air = airNoise - airLp;
+
+        final body = low2 * 7.0;
+        final movingAir = whoosh * 2.2;
+        final softHiss = air * 0.055;
         samples[i] =
-            (lp * (0.5 + gust) * swell * 4.5).clamp(-1.0, 1.0) * 0.8;
+            ((body + movingAir + softHiss) * gust * 0.72).clamp(-1.0, 1.0);
       }
       break;
+
+    case AmbientType.piano:
+      throw UnsupportedError('Piano uses a bundled audio asset.');
   }
 
   return _encodeWav(samples);
