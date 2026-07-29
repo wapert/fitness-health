@@ -84,13 +84,6 @@ class _PlanScreenState extends State<PlanScreen> {
     setState(() => _completedExercises = next);
   }
 
-  /// True when the calendar date is strictly before today (date-only).
-  bool _isPast(DateTime d) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    return DateTime(d.year, d.month, d.day).isBefore(today);
-  }
-
   Future<void> _removeScheduledExercise(int weekday, String exerciseId) async {
     final next =
         await _scheduleService.toggle(_exerciseSchedule, weekday, exerciseId);
@@ -657,7 +650,7 @@ class _PlanScreenState extends State<PlanScreen> {
                   date: date, activity: _activityFor(date),
                   done: _isDone(date), isToday: false,
                   isSelected: _selectedDay != null && isSameDay(_selectedDay!, date),
-                  isOutside: false, isPast: _isPast(date),
+                  isOutside: false,
                   exerciseCount: _exerciseCountFor(date),
                   exerciseDoneCount: _exerciseDoneCountFor(date),
                 ),
@@ -665,7 +658,7 @@ class _PlanScreenState extends State<PlanScreen> {
                   date: date, activity: _activityFor(date),
                   done: _isDone(date), isToday: true,
                   isSelected: _selectedDay != null && isSameDay(_selectedDay!, date),
-                  isOutside: false, isPast: false,
+                  isOutside: false,
                   exerciseCount: _exerciseCountFor(date),
                   exerciseDoneCount: _exerciseDoneCountFor(date),
                 ),
@@ -674,14 +667,14 @@ class _PlanScreenState extends State<PlanScreen> {
                   done: _isDone(date),
                   isToday: isSameDay(date, DateTime.now()),
                   isSelected: true,
-                  isOutside: false, isPast: _isPast(date),
+                  isOutside: false,
                   exerciseCount: _exerciseCountFor(date),
                   exerciseDoneCount: _exerciseDoneCountFor(date),
                 ),
                 outsideBuilder: (_, date, __) => _DayCell(
                   date: date, activity: null,
                   done: false, isToday: false,
-                  isSelected: false, isOutside: true, isPast: _isPast(date),
+                  isSelected: false, isOutside: true,
                   exerciseCount: 0, exerciseDoneCount: 0,
                 ),
               ),
@@ -710,7 +703,6 @@ class _DayCell extends StatelessWidget {
     required this.isToday,
     required this.isSelected,
     required this.isOutside,
-    required this.isPast,
     required this.exerciseCount,
     required this.exerciseDoneCount,
   });
@@ -721,7 +713,6 @@ class _DayCell extends StatelessWidget {
   final bool isToday;
   final bool isSelected;
   final bool isOutside;
-  final bool isPast;
   final int exerciseCount;
   final int exerciseDoneCount;
 
@@ -782,8 +773,8 @@ class _DayCell extends StatelessWidget {
                     height: 8,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      // solid only when still upcoming and not completed
-                      color: (!done && !isPast) ? actColor : Colors.transparent,
+                      // empty ring until marked done; filled dot when completed
+                      color: done ? actColor : Colors.transparent,
                       border: Border.all(color: actColor!, width: 1.5),
                     ),
                   ),
