@@ -102,53 +102,14 @@ class _UserViewState extends State<_UserView> {
     if (mounted) setState(() => _biometricEnabled = enabled);
   }
 
-  Future<String?> _requestPassword() async {
-    final controller = TextEditingController();
-    final password = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('啟用生物辨識登入'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('請輸入目前密碼，以安全儲存登入憑證。'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              obscureText: true,
-              autofocus: true,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (value) {
-                if (value.isNotEmpty) Navigator.pop(dialogContext, value);
-              },
-              decoration: const InputDecoration(
-                labelText: '密碼',
-                prefixIcon: Icon(Icons.lock_outlined),
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
+  Future<String?> _requestPassword() => showDialog<String>(
+        context: context,
+        builder: (_) => const _PasswordPromptDialog(
+          title: '啟用生物辨識登入',
+          message: '請輸入目前密碼，以安全儲存登入憑證。',
+          confirmLabel: '繼續',
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (controller.text.isNotEmpty) {
-                Navigator.pop(dialogContext, controller.text);
-              }
-            },
-            child: const Text('繼續'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    return password;
-  }
+      );
 
   String get _initials {
     final email = widget.user.email ?? '';
@@ -235,78 +196,17 @@ class _UserViewState extends State<_UserView> {
   /// Shows the irreversible-deletion warning plus a password field (required
   /// to reauthenticate before Firebase allows account deletion). Returns the
   /// entered password if the user confirms, or null if they cancel.
-  Future<String?> _confirmDeleteAccount() async {
-    final controller = TextEditingController();
-    bool obscure = true;
-    final scheme = Theme.of(context).colorScheme;
-
-    final password = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
-          title: const Text('刪除帳號'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '此操作將永久刪除您的帳號與所有資料，包含訓練計畫、完成記錄與登入資訊，且無法復原。',
-                  style: TextStyle(color: scheme.error),
-                ),
-                const SizedBox(height: 16),
-                const Text('請輸入密碼以確認身分：'),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: controller,
-                  obscureText: obscure,
-                  autofocus: true,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (value) {
-                    if (value.isNotEmpty) {
-                      Navigator.pop(dialogContext, value);
-                    }
-                  },
-                  decoration: InputDecoration(
-                    labelText: '密碼',
-                    prefixIcon: const Icon(Icons.lock_outlined),
-                    border: const OutlineInputBorder(),
-                    suffixIcon: IconButton(
-                      icon: Icon(obscure
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined),
-                      onPressed: () =>
-                          setDialogState(() => obscure = !obscure),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: scheme.error,
-                foregroundColor: scheme.onError,
-              ),
-              onPressed: () {
-                if (controller.text.isNotEmpty) {
-                  Navigator.pop(dialogContext, controller.text);
-                }
-              },
-              child: const Text('永久刪除'),
-            ),
-          ],
+  Future<String?> _confirmDeleteAccount() => showDialog<String>(
+        context: context,
+        builder: (_) => const _PasswordPromptDialog(
+          title: '刪除帳號',
+          warning: '此操作將永久刪除您的帳號與所有資料，包含訓練計畫、完成記錄與登入資訊，且無法復原。',
+          message: '請輸入密碼以確認身分：',
+          confirmLabel: '永久刪除',
+          destructive: true,
+          showVisibilityToggle: true,
         ),
-      ),
-    );
-    controller.dispose();
-    return password;
-  }
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -451,6 +351,118 @@ class _UserViewState extends State<_UserView> {
         Text('全方位健身 v1.0.0',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 12, color: scheme.outlineVariant)),
+      ],
+    );
+  }
+}
+
+/// Reusable "enter your password" dialog. Owns its TextEditingController via
+/// the widget's own State lifecycle (created in initState, disposed in
+/// dispose) so it is only ever torn down once the dialog is actually removed
+/// from the tree — disposing a controller manually right after showDialog
+/// returns races the dialog's exit animation and can crash with "a
+/// TextEditingController was used after being disposed".
+class _PasswordPromptDialog extends StatefulWidget {
+  const _PasswordPromptDialog({
+    required this.title,
+    required this.confirmLabel,
+    this.warning,
+    this.message,
+    this.destructive = false,
+    this.showVisibilityToggle = false,
+  });
+
+  final String title;
+  final String confirmLabel;
+  final String? warning;
+  final String? message;
+  final bool destructive;
+  final bool showVisibilityToggle;
+
+  @override
+  State<_PasswordPromptDialog> createState() => _PasswordPromptDialogState();
+}
+
+class _PasswordPromptDialogState extends State<_PasswordPromptDialog> {
+  late final TextEditingController _controller;
+  bool _obscure = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (_controller.text.isNotEmpty) {
+      Navigator.pop(context, _controller.text);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AlertDialog(
+      title: Text(widget.title),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (widget.warning != null) ...[
+              Text(widget.warning!, style: TextStyle(color: scheme.error)),
+              const SizedBox(height: 16),
+            ],
+            if (widget.message != null) ...[
+              Text(widget.message!),
+              const SizedBox(height: 8),
+            ],
+            TextField(
+              controller: _controller,
+              obscureText: _obscure,
+              autofocus: true,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (value) {
+                if (value.isNotEmpty) Navigator.pop(context, value);
+              },
+              decoration: InputDecoration(
+                labelText: '密碼',
+                prefixIcon: const Icon(Icons.lock_outlined),
+                border: const OutlineInputBorder(),
+                suffixIcon: widget.showVisibilityToggle
+                    ? IconButton(
+                        icon: Icon(_obscure
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined),
+                        onPressed: () => setState(() => _obscure = !_obscure),
+                      )
+                    : null,
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          style: widget.destructive
+              ? FilledButton.styleFrom(
+                  backgroundColor: scheme.error,
+                  foregroundColor: scheme.onError,
+                )
+              : null,
+          onPressed: _submit,
+          child: Text(widget.confirmLabel),
+        ),
       ],
     );
   }
