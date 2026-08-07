@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/biometric_auth_service.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -15,11 +16,30 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _obscure = true;
   bool _obscureConfirm = true;
   String? _error;
+  String? _biometricEmail;
+  bool _biometricAvailable = false;
 
-  final _formKey      = GlobalKey<FormState>();
-  final _emailCtrl    = TextEditingController();
-  final _passCtrl     = TextEditingController();
-  final _confirmCtrl  = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  final _emailCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBiometricLogin();
+  }
+
+  Future<void> _loadBiometricLogin() async {
+    final service = BiometricAuthService.instance;
+    final available = await service.isAvailable();
+    final email = available ? await service.savedLoginEmail() : null;
+    if (!mounted) return;
+    setState(() {
+      _biometricAvailable = available;
+      _biometricEmail = email;
+    });
+  }
 
   @override
   void dispose() {
@@ -33,18 +53,53 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       if (_isLogin) {
-        await AuthService.instance.signIn(
-            _emailCtrl.text.trim(), _passCtrl.text);
+        final credential = await AuthService.instance
+            .signIn(_emailCtrl.text.trim(), _passCtrl.text);
+        BiometricAuthService.instance
+            .markRecentlyAuthenticated(credential.user!.uid);
       } else {
-        await AuthService.instance.signUp(
-            _emailCtrl.text.trim(), _passCtrl.text);
+        final credential = await AuthService.instance
+            .signUp(_emailCtrl.text.trim(), _passCtrl.text);
+        BiometricAuthService.instance
+            .markRecentlyAuthenticated(credential.user!.uid);
       }
       // GoRouter redirect listens to auth state — navigation happens automatically
     } on FirebaseAuthException catch (e) {
       setState(() => _error = AuthService.instance.errorMessage(e));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _signInWithBiometrics() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final saved = await BiometricAuthService.instance.readLoginCredentials();
+      if (saved == null) {
+        if (mounted) setState(() => _error = '無法讀取生物辨識登入資料');
+        return;
+      }
+      final credential =
+          await AuthService.instance.signIn(saved.email, saved.password);
+      if (credential.user?.uid != saved.uid) {
+        await AuthService.instance.signOut();
+        if (mounted) setState(() => _error = '儲存的登入帳號不相符');
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = '${AuthService.instance.errorMessage(e)}，請使用密碼登入';
+        });
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -56,7 +111,10 @@ class _AuthScreenState extends State<AuthScreen> {
       setState(() => _error = '請先輸入 Email 再重設密碼');
       return;
     }
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       await AuthService.instance.resetPassword(email);
       if (mounted) {
@@ -89,12 +147,15 @@ class _AuthScreenState extends State<AuthScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // ── Logo ─────────────────────────────────────────────────
-                  const Text('🏋️', textAlign: TextAlign.center,
+                  const Text('🏋️',
+                      textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 56)),
                   const SizedBox(height: 10),
                   Text('全方位健身',
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineSmall
+                      style: Theme.of(context)
+                          .textTheme
+                          .headlineSmall
                           ?.copyWith(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
                   Text('登入後可跨裝置同步訓練計畫',
@@ -114,137 +175,155 @@ class _AuthScreenState extends State<AuthScreen> {
 
                   // ── Form ──────────────────────────────────────────────────
                   Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // Email
-                          TextFormField(
-                            controller: _emailCtrl,
-                            keyboardType: TextInputType.emailAddress,
-                            textInputAction: TextInputAction.next,
-                            autocorrect: false,
-                            decoration: const InputDecoration(
-                              labelText: 'Email',
-                              prefixIcon: Icon(Icons.email_outlined),
-                              border: OutlineInputBorder(),
-                            ),
-                            validator: (v) {
-                              if (v == null || v.trim().isEmpty) return '請輸入 Email';
-                              if (!v.contains('@')) return 'Email 格式不正確';
-                              return null;
-                            },
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Email
+                        TextFormField(
+                          controller: _emailCtrl,
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
+                          autocorrect: false,
+                          decoration: const InputDecoration(
+                            labelText: 'Email',
+                            prefixIcon: Icon(Icons.email_outlined),
+                            border: OutlineInputBorder(),
                           ),
-                          const SizedBox(height: 14),
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) {
+                              return '請輸入 Email';
+                            }
+                            if (!v.contains('@')) return 'Email 格式不正確';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 14),
 
-                          // Password
+                        // Password
+                        TextFormField(
+                          controller: _passCtrl,
+                          obscureText: _obscure,
+                          textInputAction: _isLogin
+                              ? TextInputAction.done
+                              : TextInputAction.next,
+                          onFieldSubmitted: _isLogin ? (_) => _submit() : null,
+                          decoration: InputDecoration(
+                            labelText: '密碼',
+                            prefixIcon: const Icon(Icons.lock_outlined),
+                            border: const OutlineInputBorder(),
+                            suffixIcon: IconButton(
+                              icon: Icon(_obscure
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined),
+                              onPressed: () =>
+                                  setState(() => _obscure = !_obscure),
+                            ),
+                          ),
+                          validator: (v) {
+                            if (v == null || v.isEmpty) return '請輸入密碼';
+                            if (!_isLogin && v.length < 6) {
+                              return '密碼至少需要 6 個字元';
+                            }
+                            return null;
+                          },
+                        ),
+
+                        // Confirm password (register only)
+                        if (!_isLogin) ...[
+                          const SizedBox(height: 14),
                           TextFormField(
-                            controller: _passCtrl,
-                            obscureText: _obscure,
-                            textInputAction: _isLogin
-                                ? TextInputAction.done
-                                : TextInputAction.next,
-                            onFieldSubmitted: _isLogin ? (_) => _submit() : null,
+                            controller: _confirmCtrl,
+                            obscureText: _obscureConfirm,
+                            textInputAction: TextInputAction.done,
+                            onFieldSubmitted: (_) => _submit(),
                             decoration: InputDecoration(
-                              labelText: '密碼',
+                              labelText: '確認密碼',
                               prefixIcon: const Icon(Icons.lock_outlined),
                               border: const OutlineInputBorder(),
                               suffixIcon: IconButton(
-                                icon: Icon(_obscure
+                                icon: Icon(_obscureConfirm
                                     ? Icons.visibility_outlined
                                     : Icons.visibility_off_outlined),
-                                onPressed: () =>
-                                    setState(() => _obscure = !_obscure),
+                                onPressed: () => setState(
+                                    () => _obscureConfirm = !_obscureConfirm),
                               ),
                             ),
                             validator: (v) {
-                              if (v == null || v.isEmpty) return '請輸入密碼';
-                              if (!_isLogin && v.length < 6) return '密碼至少需要 6 個字元';
+                              if (v != _passCtrl.text) return '兩次密碼不相符';
                               return null;
                             },
                           ),
-
-                          // Confirm password (register only)
-                          if (!_isLogin) ...[
-                            const SizedBox(height: 14),
-                            TextFormField(
-                              controller: _confirmCtrl,
-                              obscureText: _obscureConfirm,
-                              textInputAction: TextInputAction.done,
-                              onFieldSubmitted: (_) => _submit(),
-                              decoration: InputDecoration(
-                                labelText: '確認密碼',
-                                prefixIcon: const Icon(Icons.lock_outlined),
-                                border: const OutlineInputBorder(),
-                                suffixIcon: IconButton(
-                                  icon: Icon(_obscureConfirm
-                                      ? Icons.visibility_outlined
-                                      : Icons.visibility_off_outlined),
-                                  onPressed: () => setState(
-                                      () => _obscureConfirm = !_obscureConfirm),
-                                ),
-                              ),
-                              validator: (v) {
-                                if (v != _passCtrl.text) return '兩次密碼不相符';
-                                return null;
-                              },
-                            ),
-                          ],
-
-                          // Error message
-                          if (_error != null) ...[
-                            const SizedBox(height: 12),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 10),
-                              decoration: BoxDecoration(
-                                color: scheme.errorContainer,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(Icons.error_outline,
-                                      size: 18, color: scheme.onErrorContainer),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(_error!,
-                                        style: TextStyle(
-                                            color: scheme.onErrorContainer)),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-
-                          const SizedBox(height: 20),
-
-                          // Submit button
-                          FilledButton(
-                            onPressed: _loading ? null : _submit,
-                            style: FilledButton.styleFrom(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 14)),
-                            child: _loading
-                                ? const SizedBox(
-                                    width: 20, height: 20,
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white))
-                                : Text(_isLogin ? '登入' : '建立帳號',
-                                    style: const TextStyle(fontSize: 16)),
-                          ),
-
-                          // Forgot password
-                          if (_isLogin) ...[
-                            const SizedBox(height: 8),
-                            TextButton(
-                              onPressed: _loading ? null : _forgotPassword,
-                              child: const Text('忘記密碼？'),
-                            ),
-                          ],
                         ],
-                      ),
+
+                        // Error message
+                        if (_error != null) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: scheme.errorContainer,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.error_outline,
+                                    size: 18, color: scheme.onErrorContainer),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(_error!,
+                                      style: TextStyle(
+                                          color: scheme.onErrorContainer)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
+                        const SizedBox(height: 20),
+
+                        // Submit button
+                        FilledButton(
+                          onPressed: _loading ? null : _submit,
+                          style: FilledButton.styleFrom(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 14)),
+                          child: _loading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Colors.white))
+                              : Text(_isLogin ? '登入' : '建立帳號',
+                                  style: const TextStyle(fontSize: 16)),
+                        ),
+
+                        if (_isLogin &&
+                            _biometricAvailable &&
+                            _biometricEmail != null) ...[
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: _loading ? null : _signInWithBiometrics,
+                            icon: const Icon(Icons.fingerprint),
+                            label: Text('使用生物辨識登入\n$_biometricEmail'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ],
+
+                        // Forgot password
+                        if (_isLogin) ...[
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: _loading ? null : _forgotPassword,
+                            child: const Text('忘記密碼？'),
+                          ),
+                        ],
+                      ],
                     ),
+                  ),
                 ],
               ),
             ),
@@ -273,10 +352,8 @@ class _ModeToggle extends StatelessWidget {
       padding: const EdgeInsets.all(4),
       child: Row(
         children: [
-          _Chip(label: '登入', active: isLogin,
-              onTap: () => onChanged(true)),
-          _Chip(label: '建立帳號', active: !isLogin,
-              onTap: () => onChanged(false)),
+          _Chip(label: '登入', active: isLogin, onTap: () => onChanged(true)),
+          _Chip(label: '建立帳號', active: !isLogin, onTap: () => onChanged(false)),
         ],
       ),
     );
@@ -307,7 +384,8 @@ class _Chip extends StatelessWidget {
             textAlign: TextAlign.center,
             style: TextStyle(
               fontWeight: active ? FontWeight.bold : FontWeight.normal,
-              color: active ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
+              color:
+                  active ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
             ),
           ),
         ),

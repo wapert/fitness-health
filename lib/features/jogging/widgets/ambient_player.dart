@@ -44,6 +44,27 @@ const _ambients = [
     color: Color(0xFF00695C),
   ),
   _Ambient(
+    type: AmbientType.forestBirds,
+    icon: '🌲',
+    title: '森林晨鳥',
+    subtitle: '清晨鳥鳴・輕快舒心',
+    color: Color(0xFF2E7D32),
+  ),
+  _Ambient(
+    type: AmbientType.flowingStream,
+    icon: '🏞️',
+    title: '溪流水聲',
+    subtitle: '潺潺流水・穩定流動',
+    color: Color(0xFF0277BD),
+  ),
+  _Ambient(
+    type: AmbientType.nightCrickets,
+    icon: '🌙',
+    title: '夜晚蟲鳴',
+    subtitle: '柔和蟲鳴・夜跑陪伴',
+    color: Color(0xFF455A64),
+  ),
+  _Ambient(
     type: AmbientType.piano,
     icon: '🎹',
     title: '鋼琴',
@@ -107,13 +128,22 @@ class _AmbientPlayerState extends State<AmbientPlayer> {
       return AudioSource.asset('assets/audio/simple_piano_loop.m4a');
     }
     if (a.type == AmbientType.rain) {
-      return AudioSource.asset('assets/audio/gentle_rain_loop.m4a');
+      return AudioSource.asset('assets/audio/gentle_rain_v2.m4a');
     }
     if (a.type == AmbientType.ocean) {
       return AudioSource.asset('assets/audio/ocean_waves_loop.m4a');
     }
     if (a.type == AmbientType.wind) {
-      return AudioSource.asset('assets/audio/wind_through_leaves_v3.m4a');
+      return AudioSource.asset('assets/audio/natural_wind_v4.m4a');
+    }
+    if (a.type == AmbientType.forestBirds) {
+      return AudioSource.asset('assets/audio/forest_birds_loop.m4a');
+    }
+    if (a.type == AmbientType.flowingStream) {
+      return AudioSource.asset('assets/audio/flowing_stream_loop.m4a');
+    }
+    if (a.type == AmbientType.nightCrickets) {
+      return AudioSource.asset('assets/audio/night_crickets_loop.m4a');
     }
 
     final dir = await getApplicationCacheDirectory();

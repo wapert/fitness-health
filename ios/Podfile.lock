@@ -1,22 +1,28 @@
 PODS:
+  - biometric_storage (0.0.1):
+    - Flutter
   - Flutter (1.0.0)
   - flutter_local_notifications (0.0.1):
     - Flutter
 
 DEPENDENCIES:
+  - biometric_storage (from `.symlinks/plugins/biometric_storage/ios`)
   - Flutter (from `Flutter`)
   - flutter_local_notifications (from `.symlinks/plugins/flutter_local_notifications/ios`)
 
 EXTERNAL SOURCES:
+  biometric_storage:
+    :path: ".symlinks/plugins/biometric_storage/ios"
   Flutter:
     :path: Flutter
   flutter_local_notifications:
     :path: ".symlinks/plugins/flutter_local_notifications/ios"
 
 SPEC CHECKSUMS:
+  biometric_storage: 662167ef947fba48891850f0b3042f892a839e9a
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   flutter_local_notifications: ad39620c743ea4c15127860f4b5641649a988100
 
-PODFILE CHECKSUM: 3c63482e143d1b91d2d2560aee9fb04ecc74ac7e
+PODFILE CHECKSUM: ce2a4dd764e1c7aeed6a7cdc5e61d092b6dc6d32
 
 COCOAPODS: 1.16.2

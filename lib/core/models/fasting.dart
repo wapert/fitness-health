@@ -16,11 +16,13 @@ class FastingSession {
     required this.protocol,
     required this.startTime,
     this.endTime,
-  });
+    DateTime? updatedAt,
+  }) : updatedAt = updatedAt ?? startTime;
 
   final FastingProtocol protocol;
   final DateTime startTime;
   final DateTime? endTime;
+  final DateTime updatedAt;
 
   bool get isActive => endTime == null;
 
@@ -30,4 +32,25 @@ class FastingSession {
 
   double get progress =>
       protocol.fastHours == 0 ? 0 : elapsed.inSeconds / target.inSeconds;
+
+  Map<String, dynamic> toJson() => {
+        'protocol': protocol.name,
+        'startTime': startTime.toUtc().toIso8601String(),
+        'endTime': endTime?.toUtc().toIso8601String(),
+        'updatedAt': updatedAt.toUtc().toIso8601String(),
+      };
+
+  factory FastingSession.fromJson(Map<String, dynamic> json) {
+    final startTime = DateTime.parse(json['startTime'] as String).toLocal();
+    return FastingSession(
+      protocol: FastingProtocol.values.byName(json['protocol'] as String),
+      startTime: startTime,
+      endTime: json['endTime'] == null
+          ? null
+          : DateTime.parse(json['endTime'] as String).toLocal(),
+      updatedAt: json['updatedAt'] == null
+          ? startTime
+          : DateTime.parse(json['updatedAt'] as String).toLocal(),
+    );
+  }
 }

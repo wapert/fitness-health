@@ -75,7 +75,9 @@ class _MetronomeWidgetState extends State<MetronomeWidget>
     setState(() => _audioReady = false);
     try {
       final source = _tones[idx].type == _SoundType.kickDrum
-          ? AudioSource.asset('assets/audio/big_kick_metronome.wav')
+          ? AudioSource.asset(
+              'assets/audio/deep_layered_kick_android_safe_v8.wav',
+            )
           : await _wavToFileSource(
               _generateTone(_tones[idx].type),
               'tone_$idx',
@@ -242,11 +244,15 @@ class _MetronomeWidgetState extends State<MetronomeWidget>
 
   // ── Playback ──────────────────────────────────────────────────────────────
 
+  Duration get _beatInterval => Duration(
+        milliseconds: (60000 / _bpm).round(),
+      );
+
   void _start() {
     setState(() => _running = true);
     _tick();
     _timer = Timer.periodic(
-      Duration(milliseconds: (60000 / _bpm).round()),
+      _beatInterval,
       (_) => _tick(),
     );
   }
@@ -259,7 +265,7 @@ class _MetronomeWidgetState extends State<MetronomeWidget>
   Future<void> _tick() async {
     if (!_audioReady) return;
     await _player.seek(Duration.zero);
-    await _player.play();
+    unawaited(_player.play());
     if (mounted) {
       setState(() => _beat = true);
       _pulseCtrl.forward(from: 0);
@@ -405,17 +411,17 @@ class _MetronomeWidgetState extends State<MetronomeWidget>
             ),
             const SizedBox(height: 14),
 
-            // BPM slider  150–200
+            // BPM slider  120–200
             Row(
               children: [
-                const Text('150',
+                const Text('120',
                     style: TextStyle(fontSize: 12, color: Colors.grey)),
                 Expanded(
                   child: Slider(
                     value: _bpm,
-                    min: 150,
+                    min: 120,
                     max: 200,
-                    divisions: 50,
+                    divisions: 80,
                     activeColor: const Color(0xFF4CAF50),
                     label: '$bpmInt BPM',
                     onChanged: _onBpmChanged,
@@ -426,10 +432,10 @@ class _MetronomeWidgetState extends State<MetronomeWidget>
               ],
             ),
 
-            // Preset chips  150–200
+            // Preset chips  120–200
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: [150, 160, 170, 180, 190, 200].map((bpm) {
+              children: [120, 140, 160, 180, 200].map((bpm) {
                 final active = bpmInt == bpm;
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -484,7 +490,9 @@ class _MetronomeWidgetState extends State<MetronomeWidget>
                   : FilledButton.icon(
                       onPressed: _audioReady ? _start : null,
                       icon: const Icon(Icons.play_arrow),
-                      label: Text(_audioReady ? '開始節拍  $bpmInt BPM' : '音色載入中…'),
+                      label: Text(
+                        _audioReady ? '開始節拍  $bpmInt BPM' : '音色載入中…',
+                      ),
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFF4CAF50),
                         padding: const EdgeInsets.symmetric(vertical: 12),

@@ -620,6 +620,7 @@ class _PlanScreenState extends State<PlanScreen> {
               firstDay: DateTime.utc(2025, 1, 1),
               lastDay: DateTime.utc(2027, 12, 31),
               focusedDay: _focusedDay,
+              startingDayOfWeek: StartingDayOfWeek.monday,
               rowHeight: 48, // compact rows so the month fits
               daysOfWeekHeight: 28,
               selectedDayPredicate: (d) =>

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/fasting.dart';
 import '../models/training_plan.dart';
 
 /// Syncs training plan data to Firestore.
@@ -26,6 +27,28 @@ class FirebaseSyncService {
 
   CollectionReference _completedCol(String uid) =>
       _db.collection('users').doc(uid).collection('completed_days');
+
+  DocumentReference _fastingDoc(String uid) =>
+      _db.collection('users').doc(uid).collection('fasting').doc('current');
+
+  // ── Fasting session ───────────────────────────────────────────────────────
+
+  Future<void> syncFastingSession(String uid, FastingSession session) async {
+    try {
+      await _fastingDoc(uid).set(session.toJson());
+    } catch (_) {}
+  }
+
+  Future<FastingSession?> fetchFastingSession(String uid) async {
+    try {
+      final snap = await _fastingDoc(uid).get();
+      if (!snap.exists) return null;
+      return FastingSession.fromJson(
+          Map<String, dynamic>.from(snap.data()! as Map));
+    } catch (_) {
+      return null;
+    }
+  }
 
   // ── Config ─────────────────────────────────────────────────────────────────
 
@@ -131,5 +154,43 @@ class FirebaseSyncService {
     } catch (_) {
       return {};
     }
+  }
+
+  // ── Account deletion ─────────────────────────────────────────────────────────
+
+  /// Permanently deletes every Firestore document owned by [uid]:
+  /// users/{uid}/plan/*, users/{uid}/completed_days/*, users/{uid}/fasting/*,
+  /// and the users/{uid} document itself.
+  Future<void> deleteAllUserData(String uid) async {
+    final userDoc = _db.collection('users').doc(uid);
+
+    // Named documents with known paths.
+    final docs = [
+      _configDoc(uid),
+      _exerciseScheduleDoc(uid),
+      _completedExercisesDoc(uid),
+      _fastingDoc(uid),
+    ];
+    for (final doc in docs) {
+      try {
+        await doc.delete();
+      } catch (_) {}
+    }
+
+    // completed_days is a collection — enumerate and batch-delete.
+    try {
+      final snap = await _completedCol(uid).get();
+      if (snap.docs.isNotEmpty) {
+        final batch = _db.batch();
+        for (final d in snap.docs) {
+          batch.delete(d.reference);
+        }
+        await batch.commit();
+      }
+    } catch (_) {}
+
+    try {
+      await userDoc.delete();
+    } catch (_) {}
   }
 }

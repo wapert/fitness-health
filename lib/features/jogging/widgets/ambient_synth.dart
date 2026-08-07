@@ -12,7 +12,18 @@ import 'dart:typed_data';
 /// Noise sounds loop cleanly because a one-sample jump between random values is
 /// inaudible.
 
-enum AmbientType { white, pink, brown, rain, ocean, wind, piano }
+enum AmbientType {
+  white,
+  pink,
+  brown,
+  rain,
+  ocean,
+  wind,
+  piano,
+  forestBirds,
+  flowingStream,
+  nightCrickets,
+}
 
 const int _sampleRate = 44100;
 const int _durationSec = 12;
@@ -147,7 +158,10 @@ Uint8List buildAmbientWav(int typeIndex) {
       break;
 
     case AmbientType.piano:
-      throw UnsupportedError('Piano uses a bundled audio asset.');
+    case AmbientType.forestBirds:
+    case AmbientType.flowingStream:
+    case AmbientType.nightCrickets:
+      throw UnsupportedError('${type.name} uses a bundled audio asset.');
   }
 
   return _encodeWav(samples);
