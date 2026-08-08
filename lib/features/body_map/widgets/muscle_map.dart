@@ -2,58 +2,82 @@ import 'package:flutter/material.dart';
 import 'package:flutter_body_atlas/flutter_body_atlas.dart' as atlas;
 import '../../../core/models/muscle_group.dart';
 
+/// Which side of the body actually shows each muscle group. Used so that
+/// selecting a group (e.g. from the chip row below the diagram) switches
+/// the diagram to the side where it's actually visible, instead of leaving
+/// the user on a view where nothing lights up.
+const Map<MuscleGroup, bool> muscleGroupIsFront = {
+  MuscleGroup.chest: true,
+  MuscleGroup.back: false,
+  MuscleGroup.glutes: false,
+  MuscleGroup.quads: true,
+  MuscleGroup.hamstrings: false,
+  MuscleGroup.calves: false,
+  MuscleGroup.biceps: true,
+  MuscleGroup.triceps: false,
+  MuscleGroup.shoulders: true,
+  MuscleGroup.core: true,
+};
+
+/// Maps a package muscle to this app's (coarser) MuscleGroup.
+MuscleGroup? _appGroupOf(atlas.MuscleInfo m) {
+  switch (m.group) {
+    case atlas.MuscleGroup.chest:
+      return MuscleGroup.chest;
+    case atlas.MuscleGroup.back:
+      return MuscleGroup.back;
+    case atlas.MuscleGroup.glutes:
+      return MuscleGroup.glutes;
+    case atlas.MuscleGroup.hamstrings:
+      return MuscleGroup.hamstrings;
+    case atlas.MuscleGroup.shoulders:
+      return MuscleGroup.shoulders;
+    case atlas.MuscleGroup.core:
+      return MuscleGroup.core;
+    case atlas.MuscleGroup.arms:
+      final id = m.id;
+      if (id.contains('triceps') || id.contains('anconeus')) {
+        return MuscleGroup.triceps;
+      }
+      return MuscleGroup.biceps; // biceps + forearm flexors/extensors
+    case atlas.MuscleGroup.legs:
+      final id = m.id;
+      if (id.contains('gastrocnemius') ||
+          id.contains('tibialis') ||
+          id.contains('fibularis') ||
+          id.contains('hallucis') ||
+          id.contains('digitorum')) {
+        return MuscleGroup.calves;
+      }
+      return MuscleGroup.quads; // vastus / rectus femoris / sartorius
+    case atlas.MuscleGroup.adductors:
+    case atlas.MuscleGroup.neck:
+      return null;
+  }
+}
+
 /// Interactive anatomical muscle map (front/back) built on flutter_body_atlas.
 /// Tapping a muscle selects the matching app [MuscleGroup]; the current
 /// selection is highlighted. SVG muscle art © Ryan Graves (CC BY 4.0).
-class MuscleMap extends StatefulWidget {
-  const MuscleMap({super.key, required this.selected, required this.onSelect});
+///
+/// `front`/`onFrontChanged` are controlled by the parent so that selecting a
+/// muscle group from OUTSIDE the diagram (e.g. the chip row) can switch to
+/// whichever side actually shows it. Tapping the diagram itself never needs
+/// to change sides — whatever was tapped is, by definition, already visible
+/// on the current side.
+class MuscleMap extends StatelessWidget {
+  const MuscleMap({
+    super.key,
+    required this.front,
+    required this.onFrontChanged,
+    required this.selected,
+    required this.onSelect,
+  });
 
+  final bool front;
+  final ValueChanged<bool> onFrontChanged;
   final MuscleGroup? selected;
   final ValueChanged<MuscleGroup> onSelect;
-
-  @override
-  State<MuscleMap> createState() => _MuscleMapState();
-}
-
-class _MuscleMapState extends State<MuscleMap> {
-  bool _front = true;
-
-  /// Maps a package muscle to this app's (coarser) MuscleGroup.
-  static MuscleGroup? _appGroupOf(atlas.MuscleInfo m) {
-    switch (m.group) {
-      case atlas.MuscleGroup.chest:
-        return MuscleGroup.chest;
-      case atlas.MuscleGroup.back:
-        return MuscleGroup.back;
-      case atlas.MuscleGroup.glutes:
-        return MuscleGroup.glutes;
-      case atlas.MuscleGroup.hamstrings:
-        return MuscleGroup.hamstrings;
-      case atlas.MuscleGroup.shoulders:
-        return MuscleGroup.shoulders;
-      case atlas.MuscleGroup.core:
-        return MuscleGroup.core;
-      case atlas.MuscleGroup.arms:
-        final id = m.id;
-        if (id.contains('triceps') || id.contains('anconeus')) {
-          return MuscleGroup.triceps;
-        }
-        return MuscleGroup.biceps; // biceps + forearm flexors/extensors
-      case atlas.MuscleGroup.legs:
-        final id = m.id;
-        if (id.contains('gastrocnemius') ||
-            id.contains('tibialis') ||
-            id.contains('fibularis') ||
-            id.contains('hallucis') ||
-            id.contains('digitorum')) {
-          return MuscleGroup.calves;
-        }
-        return MuscleGroup.quads; // vastus / rectus femoris / sartorius
-      case atlas.MuscleGroup.adductors:
-      case atlas.MuscleGroup.neck:
-        return null;
-    }
-  }
 
   // "進擊的巨人" exposed-muscle look: paint the whole figure in anatomical
   // reds (varied per group for depth); the selected group glows gold.
@@ -72,7 +96,7 @@ class _MuscleMapState extends State<MuscleMap> {
     atlas.MuscleGroup.neck:       Color(0xFFC05248),
   };
 
-  Map<atlas.MuscleInfo, Color?> _colorMapping(MuscleGroup? selected) {
+  Map<atlas.MuscleInfo, Color?> _colorMapping() {
     final map = <atlas.MuscleInfo, Color?>{};
     for (final m in atlas.MuscleCatalog.all) {
       final g = _appGroupOf(m);
@@ -85,7 +109,7 @@ class _MuscleMapState extends State<MuscleMap> {
 
   @override
   Widget build(BuildContext context) {
-    final mapping = _colorMapping(widget.selected);
+    final mapping = _colorMapping();
 
     return Column(
       children: [
@@ -95,8 +119,8 @@ class _MuscleMapState extends State<MuscleMap> {
             ButtonSegment(value: true, label: Text('正面'), icon: Icon(Icons.accessibility_new)),
             ButtonSegment(value: false, label: Text('背面'), icon: Icon(Icons.accessibility)),
           ],
-          selected: {_front},
-          onSelectionChanged: (s) => setState(() => _front = s.first),
+          selected: {front},
+          onSelectionChanged: (s) => onFrontChanged(s.first),
           style: const ButtonStyle(
             visualDensity: VisualDensity.compact,
           ),
@@ -107,7 +131,7 @@ class _MuscleMapState extends State<MuscleMap> {
         SizedBox(
           height: 260,
           child: atlas.BodyAtlasView<atlas.MuscleInfo>(
-            view: _front
+            view: front
                 ? atlas.AtlasAsset.musclesFront
                 : atlas.AtlasAsset.musclesBack,
             resolver: const atlas.MuscleResolver(),
@@ -115,7 +139,7 @@ class _MuscleMapState extends State<MuscleMap> {
             hoverColor: (c) => c.withValues(alpha: 0.6),
             onTapElement: (info) {
               final g = _appGroupOf(info);
-              if (g != null) widget.onSelect(g);
+              if (g != null) onSelect(g);
             },
           ),
         ),

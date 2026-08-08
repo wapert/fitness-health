@@ -11,12 +11,16 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      // Unified header style (same as 超慢跑): tinted secondaryContainer bar.
+      // Unified gray-blue header across all pages.
       appBarTheme: AppBarTheme(
         centerTitle: true,
         elevation: 0,
-        backgroundColor: scheme.secondaryContainer,
-        foregroundColor: scheme.onSecondaryContainer,
+        backgroundColor: brightness == Brightness.light
+            ? Colors.blueGrey.shade200
+            : Colors.blueGrey.shade800,
+        foregroundColor: brightness == Brightness.light
+            ? Colors.blueGrey.shade900
+            : Colors.blueGrey.shade50,
       ),
       cardTheme: CardThemeData(
         elevation: 2,

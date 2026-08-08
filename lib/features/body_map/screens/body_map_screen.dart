@@ -16,6 +16,7 @@ class BodyMapScreen extends StatefulWidget {
 class _BodyMapScreenState extends State<BodyMapScreen>
     with SingleTickerProviderStateMixin {
   MuscleGroup? _selected;
+  bool _front = true;
   late TabController _tabController;
 
   @override
@@ -38,7 +39,22 @@ class _BodyMapScreenState extends State<BodyMapScreen>
     return src.where((e) => e.primaryMuscle == _selected).toList();
   }
 
-  void _select(MuscleGroup g) =>
+  /// Selecting from the chip row also switches the diagram to whichever
+  /// side (front/back) actually shows that muscle group.
+  void _selectFromChip(MuscleGroup g) {
+    setState(() {
+      final wasSelected = _selected == g;
+      _selected = wasSelected ? null : g;
+      if (!wasSelected) {
+        _front = muscleGroupIsFront[g] ?? _front;
+      }
+    });
+  }
+
+  /// Selecting by tapping the diagram itself: whatever was tapped is, by
+  /// definition, already on the currently-shown side, so the side never
+  /// needs to change here.
+  void _selectFromDiagram(MuscleGroup g) =>
       setState(() => _selected = _selected == g ? null : g);
 
   @override
@@ -56,11 +72,16 @@ class _BodyMapScreenState extends State<BodyMapScreen>
           // ── Interactive anatomy diagram ────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-            child: MuscleMap(selected: _selected, onSelect: _select),
+            child: MuscleMap(
+              front: _front,
+              onFrontChanged: (f) => setState(() => _front = f),
+              selected: _selected,
+              onSelect: _selectFromDiagram,
+            ),
           ),
 
           // ── Compact chip selector (precise picks) ──────────────────
-          _ChipSelector(selected: _selected, onSelect: _select),
+          _ChipSelector(selected: _selected, onSelect: _selectFromChip),
           const Divider(height: 1),
 
           // ── Exercises for the selected muscle ──────────────────────
