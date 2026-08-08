@@ -62,7 +62,10 @@ class _StretchingHomeScreenState extends State<StretchingHomeScreen> {
                 : ListView.builder(
                     padding: const EdgeInsets.all(12),
                     itemCount: _filtered.length,
-                    itemBuilder: (_, i) => ExerciseCard(exercise: _filtered[i]),
+                    itemBuilder: (_, i) => ExerciseCard(
+                      key: ValueKey(_filtered[i].id),
+                      exercise: _filtered[i],
+                    ),
                   ),
           ),
         ],

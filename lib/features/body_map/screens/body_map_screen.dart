@@ -148,7 +148,10 @@ class _ExerciseList extends StatelessWidget {
     return ListView.builder(
       padding: const EdgeInsets.all(12),
       itemCount: exercises.length,
-      itemBuilder: (_, i) => ExerciseCard(exercise: exercises[i]),
+      itemBuilder: (_, i) => ExerciseCard(
+        key: ValueKey(exercises[i].id),
+        exercise: exercises[i],
+      ),
     );
   }
 }
