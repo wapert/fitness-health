@@ -23,35 +23,38 @@ class FitnessApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      initialData: FirebaseAuth.instance.currentUser,
-      builder: (context, snapshot) {
-        final isLoggedIn = snapshot.data != null;
+    return MaterialApp.router(
+      title: '全方位健身',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      routerConfig: appRouter,
+      builder: (context, child) => StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        initialData: FirebaseAuth.instance.currentUser,
+        builder: (context, snapshot) {
+          final user = snapshot.data;
+          if (user == null) return const AuthScreen();
 
-        // Not signed in → login screen (own MaterialApp = full Navigator/Overlay)
-        if (!isLoggedIn) {
-          return MaterialApp(
-            title: '全方位健身',
-            debugShowCheckedModeBanner: false,
-            theme: AppTheme.light,
-            darkTheme: AppTheme.dark,
-            home: const AuthScreen(),
+          return _AuthenticatedApp(
+            key: ValueKey(user.uid),
+            user: user,
+            child: child ?? const SizedBox.shrink(),
           );
-        }
-
-        return _AuthenticatedApp(
-          key: ValueKey(snapshot.data!.uid),
-          user: snapshot.data!,
-        );
-      },
+        },
+      ),
     );
   }
 }
 
 class _AuthenticatedApp extends StatefulWidget {
-  const _AuthenticatedApp({super.key, required this.user});
+  const _AuthenticatedApp({
+    super.key,
+    required this.user,
+    required this.child,
+  });
   final User user;
+  final Widget child;
 
   @override
   State<_AuthenticatedApp> createState() => _AuthenticatedAppState();
@@ -70,19 +73,22 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    if (_biometrics.consumeRecentAuthentication(widget.user.uid)) {
+      _loading = false;
+      _unlocked = true;
+      return;
+    }
     _initialize();
   }
 
   Future<void> _initialize() async {
     final enabled = await _biometrics.isEnabled(widget.user.uid);
-    final recentlyAuthenticated =
-        _biometrics.consumeRecentAuthentication(widget.user.uid);
     if (!mounted) return;
     setState(() {
-      _unlocked = !enabled || recentlyAuthenticated;
+      _unlocked = !enabled;
       _loading = false;
     });
-    if (enabled && !recentlyAuthenticated) await _unlock();
+    if (enabled) await _unlock();
   }
 
   Future<void> _unlock() async {
@@ -139,39 +145,21 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp>
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return MaterialApp(
-        title: '全方位健身',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
-        darkTheme: AppTheme.dark,
-        home: const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        ),
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
     if (!_unlocked) {
-      return MaterialApp(
-        title: '全方位健身',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
-        darkTheme: AppTheme.dark,
-        home: _BiometricLockScreen(
-          authenticating: _authenticating,
-          error: _error,
-          onUnlock: _unlock,
-          onSignOut: _signOut,
-        ),
+      return _BiometricLockScreen(
+        authenticating: _authenticating,
+        error: _error,
+        onUnlock: _unlock,
+        onSignOut: _signOut,
       );
     }
 
-    return MaterialApp.router(
-      title: '全方位健身',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      routerConfig: appRouter,
-    );
+    return widget.child;
   }
 }
 
